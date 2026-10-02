@@ -1,0 +1,311 @@
+<style>
+  @font-face {
+    font-family: "M PLUS 1p";
+    src: url("../fonts/m-plus-1p-japanese-400.ttf");
+    font-weight: 400;
+  }
+
+  .panel {
+    flex-direction: column;
+    width: 32;
+    padding-top: 1.4;
+    padding-right: 1.4;
+    padding-bottom: 1.4;
+    padding-left: 1.4;
+    gap: 0.9;
+    border-radius: 2;
+    font-family: "M PLUS 1p";
+  }
+
+  .row {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5;
+  }
+
+  .spread {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .col {
+    flex-direction: column;
+    gap: 0.7;
+  }
+
+  .title {
+    font-family: "M PLUS 1p";
+    font-size: 1.6;
+    color: #f3f5f8;
+    line-height: 1.25;
+  }
+
+  .caption {
+    font-family: "M PLUS 1p";
+    font-size: 1.2;
+    color: #98a2b0;
+    line-height: 1.25;
+  }
+
+  .body {
+    font-family: "M PLUS 1p";
+    font-size: 1.35;
+    color: #e6e9ee;
+    line-height: 1.25;
+  }
+
+  .divider {
+    height: 0.1;
+    background-color: #3a404a;
+  }
+
+  .tab {
+    height: 3.8;
+    min-width: 0;
+    flex-grow: 1;
+    padding-top: 0.2;
+    padding-right: 0.6;
+    padding-bottom: 0.2;
+    padding-left: 0.6;
+    border-radius: 1.9;
+    gap: 0.4;
+    line-height: 1.25;
+  }
+
+  .chip {
+    height: 3.6;
+    min-width: 0;
+    padding-top: 0.2;
+    padding-right: 0.9;
+    padding-bottom: 0.2;
+    padding-left: 0.9;
+    border-radius: 1.8;
+    gap: 0.4;
+    line-height: 1.25;
+  }
+
+  .chip-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.3;
+    line-height: 1.25;
+  }
+
+  .square {
+    width: 3.6;
+    height: 3.6;
+    min-width: 0;
+    padding-top: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+    padding-left: 0;
+    border-radius: 1.8;
+    line-height: 1.25;
+  }
+
+  .ico-sm {
+    width: 1.8;
+    height: 1.8;
+  }
+
+  .slot {
+    flex-direction: column;
+    align-items: center;
+    width: 6.6;
+    padding-top: 0.4;
+    padding-right: 0.3;
+    padding-bottom: 0.3;
+    padding-left: 0.3;
+    gap: 0.3;
+    border-radius: 0.8;
+    border-width: 0.2;
+    border-color: #2b3038;
+    background-color: #262a31;
+    cursor: pointer;
+  }
+
+  .thumb {
+    width: 4.9;
+    height: 6.9;
+    border-radius: 0.3;
+  }
+
+  .line {
+    height: 3.4;
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    padding-top: 0.2;
+    padding-right: 0.9;
+    padding-bottom: 0.2;
+    padding-left: 0.9;
+    border-radius: 1;
+    line-height: 1.25;
+  }
+
+  .line-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.25;
+    line-height: 1.25;
+  }
+</style>
+<Panel id="manager-root" class="panel">
+  <div class="row">
+    <Button id="tab-pages" class="tab" variant="primary"><Columns2 class="ico-sm" /><ButtonLabel class="chip-label">ページ</ButtonLabel></Button>
+    <Button id="tab-stock" class="tab" variant="secondary"><Archive class="ico-sm" /><ButtonLabel class="chip-label">ストック</ButtonLabel></Button>
+    <Button id="tab-refs" class="tab" variant="secondary"><BookOpen class="ico-sm" /><ButtonLabel class="chip-label">資料</ButtonLabel></Button>
+    <Button id="tab-files" class="tab" variant="secondary"><FolderOpen class="ico-sm" /><ButtonLabel class="chip-label">ファイル</ButtonLabel></Button>
+  </div>
+  <div class="divider" />
+
+  <div id="pane-pages" class="col">
+    <div class="spread">
+      <span id="page-info" class="title">1 / 16 ページ</span>
+      <div class="row">
+        <Button id="nav-next" class="square" variant="secondary"><ChevronLeft class="ico-sm" /></Button>
+        <Button id="nav-prev" class="square" variant="secondary"><ChevronRight class="ico-sm" /></Button>
+      </div>
+    </div>
+    <span class="caption">右開き(RTL)。左スティック左右でもページ送り</span>
+    <div class="row">
+      <Button id="page-append" class="chip" variant="secondary"><Plus class="ico-sm" /><ButtonLabel class="chip-label">末尾に追加</ButtonLabel></Button>
+      <Button id="page-insert" class="chip" variant="secondary"><FilePlus2 class="ico-sm" /><ButtonLabel class="chip-label">後ろに挿入</ButtonLabel></Button>
+      <Button id="page-duplicate" class="chip" variant="secondary"><Copy class="ico-sm" /><ButtonLabel class="chip-label">複製</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <Button id="page-move-later" class="chip" variant="secondary"><ArrowLeft class="ico-sm" /><ButtonLabel class="chip-label">後ろへ</ButtonLabel></Button>
+      <Button id="page-move-earlier" class="chip" variant="secondary"><ButtonLabel class="chip-label">前へ</ButtonLabel><ArrowRight class="ico-sm" /></Button>
+      <Button id="page-to-stock" class="chip" variant="secondary"><Archive class="ico-sm" /><ButtonLabel class="chip-label">ストックへ</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <Button id="page-clear" class="chip" variant="secondary"><Eraser class="ico-sm" /><ButtonLabel class="chip-label">白紙に戻す</ButtonLabel></Button>
+      <Button id="page-trash" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel class="chip-label">ゴミ箱へ</ButtonLabel></Button>
+    </div>
+    <div class="divider" />
+    <span class="caption">表示</span>
+    <div class="row">
+      <Button id="view-spread" class="chip" variant="primary"><Columns2 class="ico-sm" /><ButtonLabel class="chip-label">見開き</ButtonLabel></Button>
+      <Button id="view-single" class="chip" variant="secondary"><File class="ico-sm" /><ButtonLabel class="chip-label">単ページ</ButtonLabel></Button>
+      <Button id="view-zoom-out" class="square" variant="secondary"><ZoomOut class="ico-sm" /></Button>
+      <Button id="view-zoom-reset" class="chip" variant="secondary"><ButtonLabel id="zoom-label" class="chip-label">100%</ButtonLabel></Button>
+      <Button id="view-zoom-in" class="square" variant="secondary"><ZoomIn class="ico-sm" /></Button>
+    </div>
+    <div class="row">
+      <Button id="view-recenter" class="chip" variant="secondary"><LocateFixed class="ico-sm" /><ButtonLabel class="chip-label">正面に呼ぶ</ButtonLabel></Button>
+      <Button id="view-lower" class="square" variant="secondary"><ChevronDown class="ico-sm" /></Button>
+      <Button id="view-raise" class="square" variant="secondary"><ChevronUp class="ico-sm" /></Button>
+      <Button id="view-nearer" class="chip" variant="secondary"><ButtonLabel class="chip-label">近く</ButtonLabel></Button>
+      <Button id="view-farther" class="chip" variant="secondary"><ButtonLabel class="chip-label">遠く</ButtonLabel></Button>
+    </div>
+  </div>
+
+  <div id="pane-stock" class="col" style="display: none">
+    <div class="spread">
+      <div class="row">
+        <Button id="stock-mode-stock" class="chip" variant="primary"><ButtonLabel class="chip-label">ネームストック</ButtonLabel></Button>
+        <Button id="stock-mode-trash" class="chip" variant="secondary"><Trash2 class="ico-sm" /><ButtonLabel class="chip-label">ゴミ箱</ButtonLabel></Button>
+      </div>
+      <div class="row">
+        <Button id="stock-prev" class="square" variant="secondary"><ChevronLeft class="ico-sm" /></Button>
+        <span id="stock-page-label" class="caption">1/1</span>
+        <Button id="stock-next" class="square" variant="secondary"><ChevronRight class="ico-sm" /></Button>
+      </div>
+    </div>
+    <div class="row">
+      <div id="stock-slot-0" class="slot"><img id="stock-img-0" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-0" class="caption">-</span></div>
+      <div id="stock-slot-1" class="slot"><img id="stock-img-1" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-1" class="caption">-</span></div>
+      <div id="stock-slot-2" class="slot"><img id="stock-img-2" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-2" class="caption">-</span></div>
+      <div id="stock-slot-3" class="slot"><img id="stock-img-3" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-3" class="caption">-</span></div>
+    </div>
+    <div class="row">
+      <div id="stock-slot-4" class="slot"><img id="stock-img-4" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-4" class="caption">-</span></div>
+      <div id="stock-slot-5" class="slot"><img id="stock-img-5" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-5" class="caption">-</span></div>
+      <div id="stock-slot-6" class="slot"><img id="stock-img-6" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-6" class="caption">-</span></div>
+      <div id="stock-slot-7" class="slot"><img id="stock-img-7" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-7" class="caption">-</span></div>
+    </div>
+    <span id="stock-hint" class="caption">ページやクリップを選んで操作します</span>
+    <div class="row">
+      <Button id="stock-restore" class="chip" variant="primary"><ArchiveRestore class="ico-sm" /><ButtonLabel id="stock-restore-label" class="chip-label">ネームに戻す</ButtonLabel></Button>
+      <Button id="stock-delete" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel id="stock-delete-label" class="chip-label">削除</ButtonLabel></Button>
+    </div>
+  </div>
+
+  <div id="pane-refs" class="col" style="display: none">
+    <div class="spread">
+      <span class="title">PDF資料</span>
+      <div class="row">
+        <Button id="pdf-open" class="chip" variant="secondary"><FileText class="ico-sm" /><ButtonLabel class="chip-label">開く</ButtonLabel></Button>
+        <Button id="pdf-prev" class="square" variant="secondary"><ChevronLeft class="ico-sm" /></Button>
+        <span id="pdf-page-label" class="caption">- / -</span>
+        <Button id="pdf-next" class="square" variant="secondary"><ChevronRight class="ico-sm" /></Button>
+      </div>
+    </div>
+    <span id="pdf-status" class="caption">PDFを開くと右側に表示。ドラッグで範囲を選ぶと本文(ルビ除去)を抽出</span>
+    <span id="pdf-extract" class="body">-</span>
+    <div class="row">
+      <Button id="pdf-place" class="chip" variant="primary"><Type class="ico-sm" /><ButtonLabel class="chip-label">セリフとして配置</ButtonLabel></Button>
+      <Button id="pdf-sanitize" class="chip" variant="secondary"><ButtonLabel class="chip-label">「」と句読点を除く</ButtonLabel></Button>
+    </div>
+    <div class="divider" />
+    <div class="spread">
+      <span class="title">台本</span>
+      <div class="row">
+        <Button id="script-open" class="chip" variant="secondary"><ScrollText class="ico-sm" /><ButtonLabel class="chip-label">読込</ButtonLabel></Button>
+        <Button id="script-prev" class="square" variant="secondary"><ChevronLeft class="ico-sm" /></Button>
+        <span id="script-page-label" class="caption">- / -</span>
+        <Button id="script-next" class="square" variant="secondary"><ChevronRight class="ico-sm" /></Button>
+      </div>
+    </div>
+    <Button id="script-line-0" class="line" variant="tertiary"><ButtonLabel id="script-line-label-0" class="line-label">台本(.txt)を読み込むと1行ずつ配置できます</ButtonLabel></Button>
+    <Button id="script-line-1" class="line" variant="tertiary"><ButtonLabel id="script-line-label-1" class="line-label">-</ButtonLabel></Button>
+    <Button id="script-line-2" class="line" variant="tertiary"><ButtonLabel id="script-line-label-2" class="line-label">-</ButtonLabel></Button>
+    <Button id="script-line-3" class="line" variant="tertiary"><ButtonLabel id="script-line-label-3" class="line-label">-</ButtonLabel></Button>
+    <Button id="script-line-4" class="line" variant="tertiary"><ButtonLabel id="script-line-label-4" class="line-label">-</ButtonLabel></Button>
+    <span class="caption">行を選ぶとテキストツールで配置待ちになり、配置すると次の行へ進みます</span>
+  </div>
+
+  <div id="pane-files" class="col" style="display: none">
+    <div class="spread">
+      <span id="file-name" class="title">新しいネーム</span>
+      <Button id="file-rename" class="chip" variant="secondary"><PencilLine class="ico-sm" /><ButtonLabel class="chip-label">名前変更</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <span class="caption">新規</span>
+      <Button id="file-new-8" class="chip" variant="secondary"><ButtonLabel class="chip-label">8P</ButtonLabel></Button>
+      <Button id="file-new-16" class="chip" variant="secondary"><ButtonLabel class="chip-label">16P</ButtonLabel></Button>
+      <Button id="file-new-24" class="chip" variant="secondary"><ButtonLabel class="chip-label">24P</ButtonLabel></Button>
+      <Button id="file-new-32" class="chip" variant="secondary"><ButtonLabel class="chip-label">32P</ButtonLabel></Button>
+    </div>
+    <div class="spread">
+      <span class="caption">端末内のプロジェクト</span>
+      <div class="row">
+        <Button id="file-prev" class="square" variant="secondary"><ChevronLeft class="ico-sm" /></Button>
+        <span id="file-page-label" class="caption">1/1</span>
+        <Button id="file-next" class="square" variant="secondary"><ChevronRight class="ico-sm" /></Button>
+      </div>
+    </div>
+    <Button id="file-item-0" class="line" variant="tertiary"><ButtonLabel id="file-item-label-0" class="line-label">-</ButtonLabel></Button>
+    <Button id="file-item-1" class="line" variant="tertiary"><ButtonLabel id="file-item-label-1" class="line-label">-</ButtonLabel></Button>
+    <Button id="file-item-2" class="line" variant="tertiary"><ButtonLabel id="file-item-label-2" class="line-label">-</ButtonLabel></Button>
+    <Button id="file-item-3" class="line" variant="tertiary"><ButtonLabel id="file-item-label-3" class="line-label">-</ButtonLabel></Button>
+    <div class="row">
+      <Button id="file-open" class="chip" variant="primary"><FolderOpen class="ico-sm" /><ButtonLabel class="chip-label">開く</ButtonLabel></Button>
+      <Button id="file-delete" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel id="file-delete-label" class="chip-label">削除</ButtonLabel></Button>
+    </div>
+    <div class="divider" />
+    <div class="row">
+      <Button id="file-export-zip" class="chip" variant="secondary"><Download class="ico-sm" /><ButtonLabel class="chip-label">全ページPNG(zip)</ButtonLabel></Button>
+      <Button id="file-export-spread" class="chip" variant="secondary"><ImageDown class="ico-sm" /><ButtonLabel class="chip-label">見開きPNG</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <Button id="file-export-pdf" class="chip" variant="secondary"><FileText class="ico-sm" /><ButtonLabel class="chip-label">PDF</ButtonLabel></Button>
+      <Button id="file-export-mini" class="chip" variant="secondary"><LayoutGrid class="ico-sm" /><ButtonLabel class="chip-label">ミニネーム</ButtonLabel></Button>
+      <Button id="file-export-text" class="chip" variant="secondary"><ScrollText class="ico-sm" /><ButtonLabel class="chip-label">セリフ一覧</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <Button id="file-backup" class="chip" variant="secondary"><Save class="ico-sm" /><ButtonLabel class="chip-label">バックアップ保存</ButtonLabel></Button>
+      <Button id="file-import" class="chip" variant="secondary"><Upload class="ico-sm" /><ButtonLabel class="chip-label">バックアップ読込</ButtonLabel></Button>
+    </div>
+    <span id="file-status" class="caption">データはこの端末のブラウザ内に自動保存されます</span>
+  </div>
+</Panel>

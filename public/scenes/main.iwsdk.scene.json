@@ -1,0 +1,234 @@
+{
+  "version": "iwsdk.scene.v1",
+  "units": "meters",
+  "components": {
+    "com.iwsdk.components.DomeGradient": {
+      "sky": [
+        0.085,
+        0.095,
+        0.115,
+        1
+      ],
+      "equator": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "ground": [
+        0.06,
+        0.065,
+        0.075,
+        1
+      ],
+      "intensity": 1
+    },
+    "com.iwsdk.components.IBLGradient": {
+      "sky": [
+        0.85,
+        0.88,
+        0.95,
+        1
+      ],
+      "equator": [
+        0.62,
+        0.62,
+        0.64,
+        1
+      ],
+      "ground": [
+        0.32,
+        0.31,
+        0.3,
+        1
+      ],
+      "intensity": 1
+    }
+  },
+  "resources": {},
+  "nodes": [
+    {
+      "id": "studio-floor",
+      "name": "Studio Floor",
+      "content": {
+        "type": "asset",
+        "asset": "studio-floor"
+      },
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "studio-rig",
+      "name": "Studio Rig",
+      "content": {
+        "type": "group"
+      },
+      "transform": {
+        "position": [
+          0,
+          1.35,
+          0
+        ]
+      },
+      "children": [
+        {
+          "id": "board-anchor",
+          "name": "Board Anchor",
+          "content": {
+            "type": "group"
+          },
+          "transform": {
+            "position": [
+              0,
+              -0.27,
+              -0.55
+            ],
+            "rotationDeg": [
+              -16,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "id": "tool-palette",
+          "name": "Tool Palette",
+          "content": {
+            "type": "asset",
+            "asset": "tool-palette"
+          },
+          "transform": {
+            "position": [
+              -0.509,
+              -0.24,
+              -0.509
+            ],
+            "rotationDeg": [
+              -8,
+              45,
+              0
+            ],
+            "scale": 0.85
+          },
+          "components": {
+            "RayInteractable": {},
+            "PokeInteractable": {}
+          }
+        },
+        {
+          "id": "manager",
+          "name": "Manager Panel",
+          "content": {
+            "type": "asset",
+            "asset": "manager"
+          },
+          "transform": {
+            "position": [
+              0.509,
+              -0.24,
+              -0.509
+            ],
+            "rotationDeg": [
+              -8,
+              -45,
+              0
+            ],
+            "scale": 0.85
+          },
+          "components": {
+            "RayInteractable": {},
+            "PokeInteractable": {}
+          }
+        },
+        {
+          "id": "pdf-anchor",
+          "name": "PDF Anchor",
+          "content": {
+            "type": "group"
+          },
+          "transform": {
+            "position": [
+              0.628,
+              -0.1,
+              -0.168
+            ],
+            "rotationDeg": [
+              0,
+              -75,
+              0
+            ]
+          }
+        },
+        {
+          "id": "diorama-palette",
+          "name": "Diorama Palette",
+          "content": {
+            "type": "asset",
+            "asset": "diorama-palette"
+          },
+          "transform": {
+            "position": [
+              -0.72,
+              -0.15,
+              -0.025
+            ],
+            "rotationDeg": [
+              -6,
+              88,
+              0
+            ],
+            "scale": 0.85
+          },
+          "components": {
+            "RayInteractable": {},
+            "PokeInteractable": {}
+          }
+        },
+        {
+          "id": "diorama-anchor",
+          "name": "Diorama Anchor",
+          "content": {
+            "type": "group"
+          },
+          "transform": {
+            "position": [
+              -0.556,
+              -0.6,
+              -0.225
+            ],
+            "rotationDeg": [
+              0,
+              68,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "views": [
+      {
+        "id": "hero",
+        "role": "hero",
+        "projection": "perspective",
+        "position": [
+          0,
+          1.42,
+          0.62
+        ],
+        "target": [
+          0,
+          1.12,
+          -0.5
+        ],
+        "fov": 62
+      }
+    ]
+  }
+}

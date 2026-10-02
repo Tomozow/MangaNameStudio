@@ -1,0 +1,191 @@
+<style>
+  @font-face {
+    font-family: "M PLUS 1p";
+    src: url("../fonts/m-plus-1p-japanese-400.ttf");
+    font-weight: 400;
+  }
+
+  .panel {
+    flex-direction: column;
+    width: 34;
+    padding-top: 1.4;
+    padding-right: 1.4;
+    padding-bottom: 1.4;
+    padding-left: 1.4;
+    gap: 0.8;
+    border-radius: 2;
+    font-family: "M PLUS 1p";
+  }
+
+  .row {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5;
+  }
+
+  .spread {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .title {
+    font-family: "M PLUS 1p";
+    font-size: 1.6;
+    color: #f3f5f8;
+    line-height: 1.25;
+  }
+
+  .caption {
+    font-family: "M PLUS 1p";
+    font-size: 1.2;
+    color: #98a2b0;
+    line-height: 1.25;
+  }
+
+  .divider {
+    height: 0.1;
+    background-color: #3a404a;
+  }
+
+  .item {
+    flex-direction: column;
+    width: 5.1;
+    height: 5.4;
+    min-width: 0;
+    padding-top: 0.5;
+    padding-right: 0.1;
+    padding-bottom: 0.3;
+    padding-left: 0.1;
+    gap: 0.3;
+    border-radius: 1;
+    line-height: 1.25;
+  }
+
+  .item-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.1;
+    line-height: 1.25;
+  }
+
+  .ico {
+    width: 2.2;
+    height: 2.2;
+  }
+
+  .ico-sm {
+    width: 1.8;
+    height: 1.8;
+  }
+
+  .dot {
+    width: 2.2;
+    height: 2.2;
+    border-radius: 1.1;
+  }
+
+  .chip {
+    height: 3.4;
+    min-width: 0;
+    padding-top: 0.2;
+    padding-right: 0.8;
+    padding-bottom: 0.2;
+    padding-left: 0.8;
+    border-radius: 1.7;
+    gap: 0.4;
+    line-height: 1.25;
+  }
+
+  .chip-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.25;
+    line-height: 1.25;
+  }
+
+  .square {
+    width: 3.4;
+    height: 3.4;
+    min-width: 0;
+    padding-top: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+    padding-left: 0;
+    border-radius: 1.7;
+    line-height: 1.25;
+  }
+</style>
+<Panel id="diorama-root" class="panel">
+  <div class="spread">
+    <div class="row">
+      <Blocks class="ico-sm" color="#4c8dff" />
+      <span class="title">ジオラマ</span>
+    </div>
+    <span id="dio-status" class="caption">トリガーで掴んで移動 / グリップでも掴めます</span>
+  </div>
+  <span class="caption">キャラクター</span>
+  <div class="row">
+    <Button id="dio-fig-a" class="item" variant="secondary"><div class="dot" style="background-color: #e05555" /><ButtonLabel class="item-label">A</ButtonLabel></Button>
+    <Button id="dio-fig-b" class="item" variant="secondary"><div class="dot" style="background-color: #4a7fd9" /><ButtonLabel class="item-label">B</ButtonLabel></Button>
+    <Button id="dio-fig-c" class="item" variant="secondary"><div class="dot" style="background-color: #49a86b" /><ButtonLabel class="item-label">C</ButtonLabel></Button>
+    <Button id="dio-fig-d" class="item" variant="secondary"><div class="dot" style="background-color: #e2b13c" /><ButtonLabel class="item-label">D</ButtonLabel></Button>
+    <Button id="dio-fig-child" class="item" variant="secondary"><Baby class="ico" /><ButtonLabel class="item-label">子供</ButtonLabel></Button>
+    <Button id="dio-fig-mob" class="item" variant="secondary"><PersonStanding class="ico" /><ButtonLabel class="item-label">モブ</ButtonLabel></Button>
+  </div>
+  <span class="caption">小道具・背景</span>
+  <div class="row">
+    <Button id="dio-chair" class="item" variant="secondary"><Armchair class="ico" /><ButtonLabel class="item-label">椅子</ButtonLabel></Button>
+    <Button id="dio-table" class="item" variant="secondary"><Table class="ico" /><ButtonLabel class="item-label">机</ButtonLabel></Button>
+    <Button id="dio-sofa" class="item" variant="secondary"><Sofa class="ico" /><ButtonLabel class="item-label">ソファ</ButtonLabel></Button>
+    <Button id="dio-bed" class="item" variant="secondary"><BedDouble class="ico" /><ButtonLabel class="item-label">ベッド</ButtonLabel></Button>
+    <Button id="dio-box" class="item" variant="secondary"><Box class="ico" /><ButtonLabel class="item-label">箱</ButtonLabel></Button>
+    <Button id="dio-lamp" class="item" variant="secondary"><LampFloor class="ico" /><ButtonLabel class="item-label">街灯</ButtonLabel></Button>
+  </div>
+  <div class="row">
+    <Button id="dio-wall" class="item" variant="secondary"><BrickWall class="ico" /><ButtonLabel class="item-label">壁</ButtonLabel></Button>
+    <Button id="dio-door" class="item" variant="secondary"><DoorOpen class="ico" /><ButtonLabel class="item-label">ドア</ButtonLabel></Button>
+    <Button id="dio-window" class="item" variant="secondary"><PanelTop class="ico" /><ButtonLabel class="item-label">窓</ButtonLabel></Button>
+    <Button id="dio-tree" class="item" variant="secondary"><TreePine class="ico" /><ButtonLabel class="item-label">木</ButtonLabel></Button>
+    <Button id="dio-car" class="item" variant="secondary"><Car class="ico" /><ButtonLabel class="item-label">車</ButtonLabel></Button>
+    <Button id="dio-building" class="item" variant="secondary"><Building2 class="ico" /><ButtonLabel class="item-label">建物</ButtonLabel></Button>
+  </div>
+  <div class="divider" />
+  <div class="spread">
+    <span id="dio-sel-label" class="title">選択: なし</span>
+    <div class="row">
+      <Button id="dio-rotl" class="square" variant="secondary"><RotateCcw class="ico-sm" /></Button>
+      <Button id="dio-rotr" class="square" variant="secondary"><RotateCw class="ico-sm" /></Button>
+      <Button id="dio-dup" class="square" variant="secondary"><Copy class="ico-sm" /></Button>
+      <Button id="dio-delete" class="square" variant="negative"><Trash2 class="ico-sm" /></Button>
+    </div>
+  </div>
+  <div id="dio-pose-row" class="row">
+    <span class="caption">ポーズ</span>
+    <Button id="dio-pose-stand" class="chip" variant="primary"><ButtonLabel class="chip-label">立ち</ButtonLabel></Button>
+    <Button id="dio-pose-walk" class="chip" variant="secondary"><ButtonLabel class="chip-label">歩き</ButtonLabel></Button>
+    <Button id="dio-pose-sit" class="chip" variant="secondary"><ButtonLabel class="chip-label">座り</ButtonLabel></Button>
+    <Button id="dio-pose-point" class="chip" variant="secondary"><ButtonLabel class="chip-label">指差し</ButtonLabel></Button>
+    <Button id="dio-pose-lie" class="chip" variant="secondary"><ButtonLabel class="chip-label">寝</ButtonLabel></Button>
+  </div>
+  <div class="divider" />
+  <div class="row">
+    <span class="caption">舞台</span>
+    <Button id="dio-stage-rotl" class="square" variant="secondary"><RotateCcw class="ico-sm" /></Button>
+    <Button id="dio-stage-rotr" class="square" variant="secondary"><RotateCw class="ico-sm" /></Button>
+    <Button id="dio-scale" class="chip" variant="secondary"><Maximize class="ico-sm" /><ButtonLabel id="dio-scale-label" class="chip-label">原寸で見る</ButtonLabel></Button>
+    <Button id="dio-gaze" class="chip" variant="primary"><Eye class="ico-sm" /><ButtonLabel class="chip-label">視線</ButtonLabel></Button>
+    <Button id="dio-clear" class="chip" variant="negative"><ButtonLabel id="dio-clear-label" class="chip-label">全消去</ButtonLabel></Button>
+  </div>
+  <div class="row">
+    <span class="caption">カメラ</span>
+    <Button id="dio-cam-wide" class="chip" variant="secondary"><ButtonLabel class="chip-label">広角</ButtonLabel></Button>
+    <Button id="dio-cam-normal" class="chip" variant="primary"><ButtonLabel class="chip-label">標準</ButtonLabel></Button>
+    <Button id="dio-cam-tele" class="chip" variant="secondary"><ButtonLabel class="chip-label">望遠</ButtonLabel></Button>
+    <Button id="dio-cam-paste" class="chip" variant="primary"><ImageDown class="ico-sm" /><ButtonLabel class="chip-label">ページに下絵</ButtonLabel></Button>
+  </div>
+  <div class="row">
+    <span class="caption">カット</span>
+    <Button id="dio-cut-save" class="chip" variant="secondary"><Save class="ico-sm" /><ButtonLabel class="chip-label">このページに保存</ButtonLabel></Button>
+    <Button id="dio-cut-load" class="chip" variant="secondary"><FolderOpen class="ico-sm" /><ButtonLabel class="chip-label">このページの配置を呼出</ButtonLabel></Button>
+  </div>
+  <span class="caption">カメラを掴んで構図を決め、モニターの絵を選択中のページへ下絵として貼れます</span>
+</Panel>

@@ -1,0 +1,266 @@
+<style>
+  @font-face {
+    font-family: "M PLUS 1p";
+    src: url("../fonts/m-plus-1p-japanese-400.ttf");
+    font-weight: 400;
+  }
+
+  .palette {
+    flex-direction: column;
+    width: 30;
+    padding-top: 1.4;
+    padding-right: 1.4;
+    padding-bottom: 1.4;
+    padding-left: 1.4;
+    gap: 0.9;
+    border-radius: 2;
+    font-family: "M PLUS 1p";
+  }
+
+  .row {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5;
+  }
+
+  .spread {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .title {
+    font-family: "M PLUS 1p";
+    font-size: 1.8;
+    color: #f3f5f8;
+    line-height: 1.25;
+  }
+
+  .caption {
+    font-family: "M PLUS 1p";
+    font-size: 1.2;
+    color: #98a2b0;
+    line-height: 1.25;
+  }
+
+  .value {
+    font-family: "M PLUS 1p";
+    font-size: 1.4;
+    color: #e6e9ee;
+    width: 7.4;
+    line-height: 1.25;
+  }
+
+  .divider {
+    height: 0.1;
+    background-color: #3a404a;
+  }
+
+  .tool {
+    flex-direction: column;
+    width: 6.4;
+    height: 6.2;
+    min-width: 0;
+    padding-top: 0.5;
+    padding-right: 0.2;
+    padding-bottom: 0.4;
+    padding-left: 0.2;
+    gap: 0.35;
+    border-radius: 1.2;
+    line-height: 1.25;
+  }
+
+  .tool-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.2;
+    line-height: 1.25;
+  }
+
+  .ico {
+    width: 2.4;
+    height: 2.4;
+  }
+
+  .ico-sm {
+    width: 1.8;
+    height: 1.8;
+  }
+
+  .chip {
+    height: 3.6;
+    min-width: 0;
+    padding-top: 0.2;
+    padding-right: 1;
+    padding-bottom: 0.2;
+    padding-left: 1;
+    border-radius: 1.8;
+    gap: 0.4;
+    line-height: 1.25;
+  }
+
+  .chip-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.3;
+    line-height: 1.25;
+  }
+
+  .square {
+    width: 3.6;
+    height: 3.6;
+    min-width: 0;
+    padding-top: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+    padding-left: 0;
+    border-radius: 1.8;
+    line-height: 1.25;
+  }
+
+  .swatch {
+    width: 2.9;
+    height: 2.9;
+    border-radius: 1.45;
+    border-width: 0.25;
+    border-color: #2a2f37;
+    cursor: pointer;
+  }
+
+  .wide {
+    flex-grow: 1;
+  }
+</style>
+<Panel id="tool-root" class="palette">
+  <div class="spread">
+    <div class="row">
+      <PencilLine class="ico-sm" color="#4c8dff" />
+      <span class="title">MangaName Studio</span>
+    </div>
+    <span id="save-status" class="caption">保存済み</span>
+  </div>
+  <span id="project-name" class="caption">新しいネーム</span>
+  <div class="divider" />
+
+  <div class="row">
+    <Button id="tool-pen" class="tool" variant="primary">
+      <Pen class="ico" />
+      <ButtonLabel class="tool-label">ペン</ButtonLabel>
+    </Button>
+    <Button id="tool-eraser" class="tool" variant="secondary">
+      <Eraser class="ico" />
+      <ButtonLabel class="tool-label">消しゴム</ButtonLabel>
+    </Button>
+    <Button id="tool-line" class="tool" variant="secondary">
+      <Slash class="ico" />
+      <ButtonLabel class="tool-label">直線</ButtonLabel>
+    </Button>
+    <Button id="tool-frame" class="tool" variant="secondary">
+      <RectangleHorizontal class="ico" />
+      <ButtonLabel class="tool-label">コマ枠</ButtonLabel>
+    </Button>
+  </div>
+  <div class="row">
+    <Button id="tool-text" class="tool" variant="secondary">
+      <Type class="ico" />
+      <ButtonLabel class="tool-label">テキスト</ButtonLabel>
+    </Button>
+    <Button id="tool-select" class="tool" variant="secondary">
+      <SquareDashed class="ico" />
+      <ButtonLabel class="tool-label">選択</ButtonLabel>
+    </Button>
+    <Button id="tool-lasso" class="tool" variant="secondary">
+      <Lasso class="ico" />
+      <ButtonLabel class="tool-label">投げ縄</ButtonLabel>
+    </Button>
+    <Button id="tool-hand" class="tool" variant="secondary">
+      <Hand class="ico" />
+      <ButtonLabel class="tool-label">移動</ButtonLabel>
+    </Button>
+  </div>
+
+  <div class="divider" />
+  <div id="section-ink" style="flex-direction: column; gap: 0.8">
+    <div class="row">
+      <div id="swatch-0" class="swatch" style="background-color: #1A1A1A; border-color: #ffffff" />
+      <div id="swatch-1" class="swatch" style="background-color: #6F675C" />
+      <div id="swatch-2" class="swatch" style="background-color: #FFFFFF" />
+      <div id="swatch-3" class="swatch" style="background-color: #C45C26" />
+      <div id="swatch-4" class="swatch" style="background-color: #3D5A80" />
+      <div id="swatch-5" class="swatch" style="background-color: #2A9D8F" />
+      <div id="swatch-6" class="swatch" style="background-color: #5B9BD5" />
+      <div id="swatch-7" class="swatch" style="background-color: #D64545" />
+    </div>
+    <div class="row">
+      <span id="size-label" class="value">太さ 8</span>
+      <Button id="size-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <Button id="size-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+      <Button id="size-p0" class="chip" variant="tertiary"><ButtonLabel class="chip-label">細</ButtonLabel></Button>
+      <Button id="size-p1" class="chip" variant="tertiary"><ButtonLabel class="chip-label">中</ButtonLabel></Button>
+      <Button id="size-p2" class="chip" variant="tertiary"><ButtonLabel class="chip-label">太</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <span id="opacity-label" class="value">濃さ 100%</span>
+      <Button id="opacity-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <Button id="opacity-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+      <Button id="opacity-p0" class="chip" variant="tertiary"><ButtonLabel class="chip-label">下書き</ButtonLabel></Button>
+      <Button id="opacity-p1" class="chip" variant="tertiary"><ButtonLabel class="chip-label">100%</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <span id="stab-label" class="value">補正 50%</span>
+      <Button id="stab-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <Button id="stab-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+      <Button id="opt-pressure" class="chip" variant="primary"><ButtonLabel class="chip-label">筆圧</ButtonLabel></Button>
+      <Button id="opt-snap" class="chip" variant="primary"><ButtonLabel class="chip-label">角度スナップ</ButtonLabel></Button>
+    </div>
+  </div>
+
+  <div id="section-text" style="flex-direction: column; gap: 0.8; display: none">
+    <span id="text-hint" class="caption">ページをタップで新規 / ダブルタップで編集 / 角をドラッグで拡大</span>
+    <div class="row">
+      <span id="text-size-label" class="value">文字 36</span>
+      <Button id="text-size-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <Button id="text-size-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+      <Button id="text-vertical" class="chip" variant="primary"><ButtonLabel class="chip-label">縦書き</ButtonLabel></Button>
+      <Button id="text-horizontal" class="chip" variant="secondary"><ButtonLabel class="chip-label">横書き</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <div id="tswatch-0" class="swatch" style="background-color: #1A1A1A; border-color: #ffffff" />
+      <div id="tswatch-1" class="swatch" style="background-color: #FFFFFF" />
+      <div id="tswatch-2" class="swatch" style="background-color: #D64545" />
+      <div id="tswatch-3" class="swatch" style="background-color: #3D5A80" />
+      <Button id="text-edit" class="chip" variant="secondary"><PencilLine class="ico-sm" /><ButtonLabel class="chip-label">編集</ButtonLabel></Button>
+      <Button id="text-delete" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel class="chip-label">削除</ButtonLabel></Button>
+    </div>
+    <span id="pending-text" class="caption">配置待ち: なし</span>
+  </div>
+
+  <div id="section-select" style="flex-direction: column; gap: 0.8; display: none">
+    <span id="select-hint" class="caption">ドラッグで範囲を切り取り / 角で拡大 / 上の丸で回転</span>
+    <div class="row">
+      <Button id="sel-commit" class="chip" variant="primary"><Check class="ico-sm" /><ButtonLabel class="chip-label">確定</ButtonLabel></Button>
+      <Button id="sel-cancel" class="chip" variant="secondary"><X class="ico-sm" /><ButtonLabel class="chip-label">取消</ButtonLabel></Button>
+      <Button id="sel-dup" class="chip" variant="secondary"><Copy class="ico-sm" /><ButtonLabel class="chip-label">複製</ButtonLabel></Button>
+      <Button id="sel-delete" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel class="chip-label">削除</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <Button id="sel-flip" class="square" variant="secondary"><FlipHorizontal2 class="ico-sm" /></Button>
+      <Button id="sel-rotl" class="square" variant="secondary"><RotateCcw class="ico-sm" /></Button>
+      <Button id="sel-rotr" class="square" variant="secondary"><RotateCw class="ico-sm" /></Button>
+      <Button id="sel-smaller" class="square" variant="secondary"><ZoomOut class="ico-sm" /></Button>
+      <Button id="sel-bigger" class="square" variant="secondary"><ZoomIn class="ico-sm" /></Button>
+      <Button id="sel-stock" class="chip" variant="secondary"><Archive class="ico-sm" /><ButtonLabel class="chip-label">ストックへ</ButtonLabel></Button>
+    </div>
+  </div>
+
+  <div class="divider" />
+  <div class="spread">
+    <div class="row">
+      <Button id="undo-button" class="chip" variant="secondary"><Undo2 class="ico-sm" /><ButtonLabel class="chip-label">取り消し</ButtonLabel></Button>
+      <Button id="redo-button" class="chip" variant="secondary"><Redo2 class="ico-sm" /><ButtonLabel class="chip-label">やり直し</ButtonLabel></Button>
+    </div>
+    <div class="row">
+      <Button id="xr-button" class="chip" variant="primary"><Glasses class="ico-sm" /><ButtonLabel class="chip-label">VRで開く</ButtonLabel></Button>
+      <Button id="exit-button" class="chip" variant="secondary" style="display: none"><LogOut class="ico-sm" /><ButtonLabel class="chip-label">VR終了</ButtonLabel></Button>
+    </div>
+  </div>
+  <span id="toast" class="caption">ようこそ。右手トリガーで描画、Aで取り消し、Bでやり直し</span>
+</Panel>
