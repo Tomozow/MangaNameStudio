@@ -1,5 +1,6 @@
 import { AssetType, defineAssets } from '@iwsdk/core';
 import createDioramaPreview from './scene-assets/diorama.scene-asset.js';
+import createPenPreview from './scene-assets/pen.scene-asset.js';
 import createStudioFloor from './scene-assets/studio-floor.scene-asset.js';
 
 const publicAssetUrl = (filePath: string): string =>
@@ -23,4 +24,5 @@ export default defineAssets({
   },
   'diorama-preview': createDioramaPreview(),
   'studio-floor': createStudioFloor(),
+  'stylus-pen': createPenPreview(),
 });

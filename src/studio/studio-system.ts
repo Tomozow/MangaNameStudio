@@ -2,11 +2,7 @@
 // per frame for smooth strokes, mouse/poke via pointer events), controller and
 // keyboard shortcuts, autosave and panel refresh.
 import {
-  CylinderGeometry,
-  Group,
   InputComponent,
-  Mesh,
-  MeshStandardMaterial,
   PokeInteractable,
   RayInteractable,
   Vector3,
@@ -16,6 +12,7 @@ import {
   type Object3D,
   type UIKitMLAsset,
 } from '@iwsdk/core';
+import { createPen, setPenLook } from '../scene-assets/pen.scene-asset.js';
 import { Autosave } from './autosave.js';
 import { BoardView, WINDOW_H, WINDOW_W } from './board.js';
 import { DioramaSystem } from './diorama.js';
@@ -55,15 +52,6 @@ const CONTACT = {
 
 function penPressure(height: number): number {
   return 0.35 + 0.65 * Math.min(1, Math.max(0, (CONTACT.down - height) / CONTACT.fullPress));
-}
-
-/** Stand-in until the pen asset lands. */
-function placeholderPen(): Object3D {
-  const pen = new Group();
-  const body = new Mesh(new CylinderGeometry(0.0045, 0.0015, 0.14, 12), new MeshStandardMaterial({ color: '#d9dde4' }));
-  body.position.y = 0.07;
-  pen.add(body);
-  return pen;
 }
 
 interface BoardPointerEvent {
@@ -385,7 +373,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   }
 
   private buildPens(): void {
-    this.pens = new PenRig(this.world, placeholderPen);
+    this.pens = new PenRig(this.world, createPen);
     for (const id of ['tool-palette', 'manager', 'diorama-palette']) {
       const panel = this.world.getSceneObject(id);
       if (panel != null) this.uiTargets.push(panel);
@@ -645,8 +633,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.armed.left = hands.left !== 'hand';
     this.armed.right = hands.right !== 'hand';
     this.pens.update(delta, this.armed);
+    const ink = this.project.tools.penColor;
     for (const side of SIDES) {
       const pen = this.pens.pens[side];
+      if (pen.model.visible) setPenLook(pen.model, hands[side], ink, pen.held);
       const pointers = this.input.xr.multiPointers[side];
       // A pen grip reads as a pinch, so a hand holding a pen never fires its ray.
       pointers.toggleSubPointer('ray', !(pen.armed && pen.source === 'hand'));
