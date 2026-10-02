@@ -1,7 +1,9 @@
 import type { BoardView } from './board.js';
+import type { GrabTarget } from './direct-grab.js';
 import type { History } from './history.js';
 import type { PageRt, Project } from './project.js';
 import type { TextInput } from './text-input.js';
+import type { WindowSpec } from './windows.js';
 
 /** What tools and panels need from the running studio. */
 export interface StudioCtx {
@@ -24,6 +26,10 @@ export interface StudioApi extends StudioCtx {
   pasteOnPage(canvas: HTMLCanvasElement, label: string): void;
   /** Called with the project whenever a project is opened or created. */
   onProjectOpened(listener: (project: Project) => void): () => void;
+  /** Let either hand pick `target` up directly; returns its unregister function. */
+  addGrabTarget(target: GrabTarget): () => void;
+  /** Give a window a grab bar so it can be moved. */
+  addWindow(spec: WindowSpec): void;
 }
 
 export const studioBridge: { studio: StudioApi | null; dioramaGrabbing: boolean } = {

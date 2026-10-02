@@ -1,22 +1,28 @@
 // Spatial diorama: a 1:12 stage with grabbable figures and props, gaze lines, a
 // director camera whose view can be pasted onto the current page as an underlay.
 import {
+  Box3,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
   Color,
   DirectionalLight,
   DistanceGrabbable,
+  Euler,
+  GrabSystem,
   Grabbed,
   Group,
   Line,
   LineBasicMaterial,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   MovementMode,
   PerspectiveCamera,
   PlaneGeometry,
   Pressed,
+  Quaternion,
   RayInteractable,
   RingGeometry,
   SRGBColorSpace,
@@ -39,6 +45,7 @@ import {
   type Pose,
   type PropKind,
 } from '../scene-assets/diorama.scene-asset.js';
+import { localBounds, type GrabLevel } from './direct-grab.js';
 import { newId, type DioramaSave } from './doc.js';
 import { ctx2d, makeCanvas } from './project.js';
 import { studioBridge } from './studio-ctx.js';
@@ -76,7 +83,16 @@ interface Piece {
   object: Object3D;
   pose: Pose;
   gaze: Line | null;
+  /** Mesh bounds in the piece's space, for reaching it by hand. */
+  bounds: Box3;
+  /** Carried by a hand (direct grab). */
+  held: boolean;
+  /** Unregisters the piece from direct grabbing. */
+  release: () => void;
 }
+
+/** Emissive tint for a piece a hand can take (1) or is carrying (2). */
+const GLOW = [0x000000, 0x18345c, 0x2d5fa6] as const;
 
 export function labelSprite(text: string, color: string): Sprite {
   const canvas = makeCanvas(256, 128);
@@ -161,6 +177,11 @@ export class DioramaSystem extends createSystem({
   private cutArmed = { key: '', time: 0 };
   private clearArmed = 0;
   private readonly pixels = new Uint8Array(RT_W * RT_H * 4);
+  private carrying = 0;
+  private readonly carryM = new Matrix4();
+  private readonly carryQ = new Quaternion();
+  private readonly carryS = new Vector3();
+  private readonly carryE = new Euler();
   private readonly tmpV = new Vector3();
   private readonly clearColor = new Color();
 
@@ -221,11 +242,24 @@ export class DioramaSystem extends createSystem({
     monitor.raycast = () => undefined;
     bezel.raycast = () => undefined;
     monitor.add(monitorCaption());
+    monitor.name = 'CameraMonitor';
     this.anchor.add(monitor);
+    studioBridge.studio?.addWindow({
+      object: monitor,
+      parent: anchorEntity,
+      bottomCenter: (out) => {
+        monitor.updateMatrix();
+        return out.set(0, -0.128, 0).applyMatrix4(monitor.matrix);
+      },
+    });
 
     this.cleanupFuncs.push(
       this.queries.grabbed.subscribe('disqualify', (entity) => this.onReleased(entity)),
-      this.queries.grabbed.subscribe('qualify', (entity) => this.selectEntity(entity)),
+      this.queries.grabbed.subscribe('qualify', (entity) => {
+        // A ray may not pull a piece out of the hand that carries it.
+        if (this.pieceOf(entity)?.held === true) this.world.getSystem(GrabSystem)?.forceRelease(entity);
+        else this.selectEntity(entity);
+      }),
       this.queries.pressed.subscribe('qualify', (entity) => this.selectEntity(entity)),
       () => this.rt.dispose(),
     );
@@ -246,7 +280,7 @@ export class DioramaSystem extends createSystem({
     this.frame++;
     if (this.lifeSize && this.frame % 30 === 0) this.applyStageTransform();
     // Re-render the camera view only when something can have changed.
-    const moving = this.queries.grabbed.entities.size > 0;
+    const moving = this.queries.grabbed.entities.size > 0 || this.carrying > 0;
     studioBridge.dioramaGrabbing = moving;
     if (moving) this.viewDirty = true;
     if (this.cameraPiece == null) return;
@@ -376,8 +410,9 @@ export class DioramaSystem extends createSystem({
       rotateMin,
       rotateMax,
     });
-    // One grab handle per entity: GrabSystem ignores a second grabbable type, so ray grab only.
-    const piece: Piece = { id, kind, entity, object, pose: 'stand', gaze: null };
+    // GrabSystem allows one grab handle per entity, so rays use DistanceGrabbable and
+    // hands take pieces directly through the studio's DirectGrab.
+    const piece: Piece = { id, kind, entity, object, pose: 'stand', gaze: null, bounds: new Box3(), held: false, release: () => {} };
     if (fig != null) {
       piece.gaze = this.makeGaze(fig.color, fig.height);
       object.getObjectByName('Neck')?.add(piece.gaze);
@@ -385,6 +420,25 @@ export class DioramaSystem extends createSystem({
       piece.pose = (save?.pose ?? 'stand') as Pose;
       applyPose(object, piece.pose);
     }
+    localBounds(object, piece.bounds);
+    piece.release = studioBridge.studio?.addGrabTarget({
+      reach: object,
+      bounds: piece.bounds,
+      carry: object,
+      available: () => object.visible && !entity.hasComponent(Grabbed),
+      highlight: (level) => this.glow(piece, level),
+      begin: () => {
+        piece.held = true;
+        this.carrying++;
+        this.select(piece);
+      },
+      move: (world) => this.carry(piece, world),
+      end: () => {
+        piece.held = false;
+        this.carrying--;
+        this.onReleased(entity);
+      },
+    }) ?? (() => {});
     if (kind === 'camera') {
       this.cameraPiece = piece;
       this.rtCamera.removeFromParent();
@@ -416,12 +470,14 @@ export class DioramaSystem extends createSystem({
     }
     this.pieces.delete(piece.id);
     if (this.selected === piece) this.select(null);
+    piece.release();
     piece.entity.dispose();
   }
 
   private load(saves: readonly DioramaSave[]): void {
     for (const piece of [...this.pieces.values()]) {
       if (piece === this.cameraPiece) this.rtCamera.removeFromParent();
+      piece.release();
       piece.entity.dispose();
     }
     this.pieces.clear();
@@ -475,6 +531,25 @@ export class DioramaSystem extends createSystem({
     setText(panel, 'dio-sel-label', `選択: ${label}`);
     const figure = piece != null && FIGURES[piece.kind] != null;
     for (const pose of POSE_IDS) setChip(panel, `dio-pose-${pose}`, figure && piece.pose === pose);
+  }
+
+  /** Follow the carrying hand: figures and props stay upright, the camera never rolls. */
+  private carry(piece: Piece, world: Matrix4): void {
+    const o = piece.object;
+    const parent = o.parent;
+    if (parent == null) return;
+    this.carryM.copy(parent.matrixWorld).invert().multiply(world).decompose(o.position, this.carryQ, this.carryS);
+    const e = this.carryE.setFromQuaternion(this.carryQ, 'YXZ');
+    const camera = piece.kind === 'camera';
+    o.rotation.set(camera ? e.x : 0, e.y, 0, 'YXZ');
+    o.position.y = Math.max(camera ? 0.2 : 0, o.position.y);
+  }
+
+  private glow(piece: Piece, level: GrabLevel): void {
+    piece.object.traverse((o) => {
+      const m = (o as Mesh).material as MeshStandardMaterial | undefined;
+      if (m != null && (m as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial === true) m.emissive.setHex(GLOW[level]);
+    });
   }
 
   private onReleased(entity: Entity): void {
@@ -661,6 +736,7 @@ export class DioramaSystem extends createSystem({
     }
     piece.pose = pose;
     applyPose(piece.object, pose);
+    localBounds(piece.object, piece.bounds);
     this.select(piece);
     this.persist();
   }

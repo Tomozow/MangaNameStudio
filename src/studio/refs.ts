@@ -150,6 +150,11 @@ export class References {
   /** A ray is over the PDF sheet (right stick then zooms the sheet). */
   hovered = false;
 
+  /** Half the sheet's height (with its backing) below the PDF anchor. */
+  get sheetHalfHeight(): number {
+    return (SHEET_H * this.sheetRoot.scale.y * 1.03) / 2;
+  }
+
   zoomSheet(k: number): void {
     const s = Math.min(2.4, Math.max(0.6, this.sheetRoot.scale.x * k));
     this.sheetRoot.scale.setScalar(s);

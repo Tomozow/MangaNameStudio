@@ -45,7 +45,7 @@ export interface Pen {
   readonly axis: Vector3;
   /** Hands only: the smoothed point between thumb and index tips. */
   readonly pinch: Vector3;
-  /** Origin at the tip, body along +Y. */
+  /** The hand's tool set: origin at the tip, body along +Y, face along +Z. */
   readonly model: Object3D;
   /** Touch pointer at the tip for UI panels. */
   readonly pointer: Pointer;
@@ -102,7 +102,7 @@ export class PenRig {
   ) {
     const make = (side: Side): Pen => {
       const model = createModel(side);
-      model.name = `Pen-${side}`;
+      model.name = `Tools-${side}`;
       model.visible = false;
       world.createTransformEntity(model, { parent: world.playerEntity, persistent: true });
       const pointer = createTouchPointer(() => world.camera, { current: model }, {}, {
@@ -235,10 +235,22 @@ export class PenRig {
     return true;
   }
 
-  /** Model origin at the tip with its +Y body pointing back along the axis. */
+  /**
+   * Model origin at the tip with its +Y body pointing back along the axis, rolled about
+   * that axis so the model's face (+Z) turns toward the viewer and its icon reads.
+   */
   private place(pen: Pen): void {
     const model = pen.model;
-    this.q.setFromUnitVectors(UP, this.a.copy(pen.axis).negate());
+    const body = this.a.copy(pen.axis).negate();
+    const face = this.world.camera.getWorldPosition(this.b).sub(pen.tip);
+    face.addScaledVector(body, -face.dot(body));
+    if (face.lengthSq() > 1e-8) {
+      face.normalize();
+      this.m.makeBasis(this.c.crossVectors(body, face), body, face);
+      this.q.setFromRotationMatrix(this.m);
+    } else {
+      this.q.setFromUnitVectors(UP, body);
+    }
     this.m.compose(pen.tip, this.q, this.s);
     const parent = model.parent;
     if (parent != null) {

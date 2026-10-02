@@ -12,10 +12,11 @@ import {
   type Object3D,
   type UIKitMLAsset,
 } from '@iwsdk/core';
-import { createPen, setPenLook } from '../scene-assets/pen.scene-asset.js';
+import { createToolSet, setToolLook } from '../scene-assets/tool-models.scene-asset.js';
 import { Autosave } from './autosave.js';
 import { BoardView, WINDOW_H, WINDOW_W } from './board.js';
 import { DioramaSystem } from './diorama.js';
+import { DirectGrab, type GrabTarget } from './direct-grab.js';
 import { INNER_FRAME, PX_PER_M, SIDES, TOOL_NAMES, readingSpreads, spreadIndexOf, type Side, type ToolId } from './doc.js';
 import * as exporter from './export.js';
 import { History } from './history.js';
@@ -32,6 +33,7 @@ import { TextInput } from './text-input.js';
 import { loadTextFont } from './text-render.js';
 import { applyJapaneseFont } from './ui-kit.js';
 import { ToolController, type BoardPoint } from './tools.js';
+import { Windows, panelBottom, type WindowSpec } from './windows.js';
 import { WristMenu } from './wrist-menu.js';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -85,6 +87,8 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private wrist: WristMenu | null = null;
   private autosave!: Autosave;
   private pens!: PenRig;
+  private grab!: DirectGrab;
+  private windows!: Windows;
   /** What each held pen tip may press: panels and the page strip (the board has its own contact logic). */
   private readonly uiTargets: Record<Side, Object3D[]> = { left: [], right: [] };
   private rig!: Object3D;
@@ -167,6 +171,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.buildBoard();
     this.bindPanels();
     this.buildPens();
+    this.buildWindows();
     this.bindDomInput();
     this.watchImmersive();
     this.ready = true;
@@ -207,6 +212,14 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   onProjectOpened(listener: (project: Project) => void): () => void {
     this.openListeners.push(listener);
     return () => this.openListeners.splice(this.openListeners.indexOf(listener), 1);
+  }
+
+  addGrabTarget(target: GrabTarget): () => void {
+    return this.grab.add(target);
+  }
+
+  addWindow(spec: WindowSpec): void {
+    this.windows.add(spec);
   }
 
   pasteOnPage(canvas: HTMLCanvasElement, label: string): void {
@@ -394,7 +407,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   }
 
   private buildPens(): void {
-    this.pens = new PenRig(this.world, createPen);
+    this.pens = new PenRig(this.world, createToolSet);
     for (const id of ['tool-palette', 'manager', 'diorama-palette']) {
       const panel = this.world.getSceneObject(id);
       if (panel != null) this.uiTargets.left.push(panel);
@@ -403,6 +416,28 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.uiTargets.right.push(...this.uiTargets.left);
     // The menu rides on the left wrist, so only the right pen can press it.
     if (this.wrist != null) this.uiTargets.right.push(this.wrist.panel);
+  }
+
+  /** Grab bars under the panels, the board and the PDF sheet (the diorama adds its monitor). */
+  private buildWindows(): void {
+    this.grab = new DirectGrab(this.world, this.pens);
+    this.windows = new Windows(this.world, this.grab, this.cleanupFuncs);
+    const rig = this.world.requireSceneEntity('studio-rig');
+    for (const [id, root] of [['tool-palette', 'tool-root'], ['manager', 'manager-root'], ['diorama-palette', 'diorama-root']] as const) {
+      const panel = this.world.getSceneObject<UIKitMLAsset>(id);
+      if (panel != null) this.windows.add({ object: panel, parent: rig, bottomCenter: (out) => panelBottom(panel, root, out) });
+    }
+    const below = (object: Object3D, depth: () => number): WindowSpec => ({
+      object,
+      parent: rig,
+      bottomCenter: (out) => {
+        object.updateMatrix();
+        return out.set(0, -depth(), 0).applyMatrix4(object.matrix);
+      },
+    });
+    this.windows.add(below(this.world.requireSceneObject('board-anchor'), () => WINDOW_H / 2 + 0.015));
+    const refs = this.refs;
+    if (refs != null) this.windows.add(below(this.world.requireSceneObject('pdf-anchor'), () => refs.sheetHalfHeight));
   }
 
   private bindDomInput(): void {
@@ -660,15 +695,23 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.armed.left = hands.left !== 'hand';
     this.armed.right = hands.right !== 'hand';
     this.pens.update(delta, this.armed);
+    this.grab.update();
+    this.windows.update(delta);
     const ink = this.project.tools.penColor;
     for (const side of SIDES) {
       const pen = this.pens.pens[side];
-      if (pen.model.visible) setPenLook(pen.model, hands[side], ink, pen.held);
+      const carrying = this.grab.holding(side);
+      // A hand carrying a window or diorama piece puts its tool away until it lets go.
+      if (carrying) {
+        pen.armed = false;
+        pen.model.visible = false;
+      }
+      if (pen.model.visible) setToolLook(pen.model, hands[side], ink, pen.held);
       const pointers = this.input.xr.multiPointers[side];
       // A pen grip reads as a pinch, so a hand holding a pen never fires its ray.
-      pointers.toggleSubPointer('ray', !(pen.armed && pen.source === 'hand'));
+      pointers.toggleSubPointer('ray', !(pen.armed && pen.source === 'hand') && !carrying);
       // While the pen is held its tip replaces the fingertip (or controller) poke.
-      pointers.toggleSubPointer('touch', !(pen.armed && pen.held));
+      pointers.toggleSubPointer('touch', !(pen.armed && pen.held) && !carrying);
     }
     this.pens.pressUi(this.uiTargets);
   }
@@ -768,8 +811,8 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     const grips = (l?.getButtonPressed(InputComponent.Squeeze) ?? false) && (r?.getButtonPressed(InputComponent.Squeeze) ?? false);
     const pinches = !grips && this.emptyHandPinch('left') && this.emptyHandPinch('right');
     const grip = this.grip;
-    // Never zoom under an active stroke/drag or while a diorama piece is held.
-    if (!(grips || pinches) || this.tools.busy || this.dioramaHeld()) {
+    // Never zoom under an active stroke/drag or while a hand carries something.
+    if (!(grips || pinches) || this.tools.busy || this.dioramaHeld() || this.grab.active) {
       grip.active = false;
       grip.held = 0;
       return false;
@@ -1074,6 +1117,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       active: this.active,
       zoom: Math.round(this.board.zoom * 100) / 100,
       grip: this.grip.active,
+      grab: this.grab.debugTargets(),
       history: (this.history as unknown as { past: Array<{ label: string }> }).past.map((h) => h.label),
       pens,
     };
