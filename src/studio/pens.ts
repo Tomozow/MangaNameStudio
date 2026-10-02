@@ -43,6 +43,8 @@ export interface Pen {
   /** World-space tip and unit axis (butt → tip). */
   readonly tip: Vector3;
   readonly axis: Vector3;
+  /** Hands only: the smoothed point between thumb and index tips. */
+  readonly pinch: Vector3;
   /** Origin at the tip, body along +Y. */
   readonly model: Object3D;
   /** Touch pointer at the tip for UI panels. */
@@ -55,6 +57,21 @@ type SceneWithTargets = Object3D & { interactableDescendants?: Object3D[] };
 
 interface HandAdapter {
   jointTransforms?: Float32Array;
+}
+
+function jointPosition(joints: Float32Array, joint: number, grip: Matrix4, out: Vector3): Vector3 {
+  return out.set(joints[joint * 16 + 12]!, joints[joint * 16 + 13]!, joints[joint * 16 + 14]!).applyMatrix4(grip);
+}
+
+/** World matrix of a tracked hand joint (WebXR joint order); false when that hand is not tracked. */
+export function handJointMatrix(world: World, side: Side, joint: number, out: Matrix4): boolean {
+  if (!world.input.xr.isPrimary('hand', side)) return false;
+  const joints = (world.input.xr.visualAdapters.hand[side] as unknown as HandAdapter).jointTransforms;
+  const grip = world.player.gripSpaces[side];
+  if (joints == null || joints.length < JOINTS * 16 || grip == null) return false;
+  grip.updateWorldMatrix(true, false);
+  out.fromArray(joints, joint * 16).premultiply(grip.matrixWorld);
+  return true;
 }
 
 /** Same rule IWSDK's own pointers use: UIKit's semantic visibility wins over Object3D.visible. */
@@ -103,6 +120,7 @@ export class PenRig {
         held: false,
         tip: new Vector3(),
         axis: new Vector3(0, 0, -1),
+        pinch: new Vector3(),
         model,
         pointer,
         filters: Array.from({ length: 6 }, () => new OneEuro(0)),
@@ -140,10 +158,11 @@ export class PenRig {
   }
 
   /**
-   * Move the held pens' UI pointers against `targets` only (panels, page strip),
-   * the way IWSDK scopes its own pointers. The board is handled by contact logic.
+   * Move the held pens' UI pointers against each side's `targets` only (panels,
+   * page strip), the way IWSDK scopes its own pointers. The board has its own
+   * contact logic.
    */
-  pressUi(targets: Object3D[]): void {
+  pressUi(targets: Record<Side, Object3D[]>): void {
     const scene = this.world.scene as SceneWithTargets;
     this.nativeEvent.timeStamp = performance.now();
     for (const side of SIDES) {
@@ -153,7 +172,7 @@ export class PenRig {
       if (live !== pointer.getEnabled()) pointer.setEnabled(live, this.nativeEvent, true);
       if (!live) continue;
       const saved = scene.interactableDescendants;
-      scene.interactableDescendants = targets;
+      scene.interactableDescendants = targets[side];
       pointer.move(scene, this.nativeEvent);
       scene.interactableDescendants = saved;
     }
@@ -185,15 +204,16 @@ export class PenRig {
     const grip = this.world.player.gripSpaces[pen.side];
     if (joints == null || joints.length < JOINTS * 16 || grip == null) return false;
     grip.updateWorldMatrix(true, false);
-    const at = (i: number, out: Vector3) =>
-      out.set(joints[i * 16 + 12]!, joints[i * 16 + 13]!, joints[i * 16 + 14]!).applyMatrix4(grip.matrixWorld);
-    const thumb = at(THUMB_TIP, this.a);
-    const index = at(INDEX_TIP, this.b);
+    const at = grip.matrixWorld;
+    const thumb = jointPosition(joints, THUMB_TIP, at, this.a);
+    const index = jointPosition(joints, INDEX_TIP, at, this.b);
     const gap = thumb.distanceTo(index);
     if (pen.held ? gap > PEN_TUNING.gripOff : gap < PEN_TUNING.gripOn) pen.held = !pen.held;
     // Grip point between the finger pads; the pen rests on the thumb–index web behind it.
     const g = thumb.add(index).multiplyScalar(0.5);
-    const web = at(THUMB_PROXIMAL, this.c).add(at(INDEX_PROXIMAL, this.d)).multiplyScalar(0.5);
+    const web = jointPosition(joints, THUMB_PROXIMAL, at, this.c)
+      .add(jointPosition(joints, INDEX_PROXIMAL, at, this.d))
+      .multiplyScalar(0.5);
     const f = pen.filters;
     const step = Math.max(1 / 120, dt);
     if (pen.fresh) {
@@ -207,6 +227,7 @@ export class PenRig {
       g.setComponent(i, f[i]!.filter(g.getComponent(i), step, PEN_TUNING.minCutoff, PEN_TUNING.beta));
       web.setComponent(i, f[i + 3]!.filter(web.getComponent(i), step, PEN_TUNING.minCutoff, PEN_TUNING.beta));
     }
+    pen.pinch.copy(g);
     pen.axis.subVectors(g, web);
     if (pen.axis.lengthSq() < 1e-8) return false;
     pen.axis.normalize();

@@ -153,6 +153,16 @@ export async function runSelfTest(studio: StudioSystem): Promise<void> {
     check('carried clip bakes onto the new spread', anyInk > 150, `alpha=${anyInk}`);
     studio.undo();
     check('undo restores carried cut', alphaAt(page.ink, 350, 900) > 200);
+    // Per-hand tools: each hand acts with its own tool, the other keeps its own.
+    const hands = { ...tools.hands };
+    tools.setTool('eraser', 'left');
+    tools.setTool('pen', 'right');
+    tools.useHand('left');
+    check('left hand acts with its own tool', tools.tool === 'eraser' && tools.hands.right === 'pen');
+    tools.useHand('right');
+    check('right hand keeps its tool', tools.tool === 'pen' && tools.hands.left === 'eraser');
+    tools.setTool(hands.left, 'left');
+    tools.setTool(hands.right, 'right');
     // Persistence
     await (studio as unknown as { autosave: { flush(): Promise<void> } }).autosave.flush();
     const saved = await storage.loadDoc(project.id);

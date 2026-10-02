@@ -209,6 +209,26 @@
           }
         }
       ]
+    },
+    {
+      "id": "wrist-menu",
+      "name": "Wrist Menu",
+      "content": {
+        "type": "asset",
+        "asset": "wrist-menu"
+      },
+      "transform": {
+        "position": [
+          0,
+          -3,
+          0
+        ],
+        "scale": 0.42
+      },
+      "components": {
+        "RayInteractable": {},
+        "PokeInteractable": {}
+      }
     }
   ],
   "authoring": {

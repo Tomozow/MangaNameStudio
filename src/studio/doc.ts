@@ -42,6 +42,18 @@ export type ToolId =
   | 'lasso'
   | 'hand';
 
+/** Short display names; 'hand' (移動) doubles as the empty hand in XR. */
+export const TOOL_NAMES: Record<ToolId, string> = {
+  pen: 'ペン',
+  eraser: '消しゴム',
+  line: '直線',
+  frame: 'コマ枠',
+  text: 'テキスト',
+  select: '選択',
+  lasso: '投げ縄',
+  hand: '素手',
+};
+
 /** Which hand (or controller) holds a tool. */
 export type Side = 'left' | 'right';
 export const SIDES: readonly Side[] = ['left', 'right'];

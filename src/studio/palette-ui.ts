@@ -1,22 +1,13 @@
 // Tool palette (left panel): tools, colours, sizes, context sections, undo/redo.
 import { VisibilityState, type UIKitMLAsset, type World } from '@iwsdk/core';
-import { PALETTE, newId, type Side, type ToolId } from './doc.js';
+import { PALETTE, TOOL_NAMES, newId, type Side, type ToolId } from './doc.js';
 import { addClipToStock } from './page-ops.js';
 import type { StudioApi } from './studio-ctx.js';
 import type { ToolController } from './tools.js';
 import { applyJapaneseFont, bindButton, setChip, setProps, setText, setVisible } from './ui-kit.js';
 
 const TOOLS: ToolId[] = ['pen', 'eraser', 'line', 'frame', 'text', 'select', 'lasso', 'hand'];
-const TOOL_NAMES: Record<ToolId, string> = {
-  pen: 'ペン',
-  eraser: '消しゴム',
-  line: '直線',
-  frame: 'コマ枠',
-  text: 'テキスト',
-  select: '選択',
-  lasso: '投げ縄',
-  hand: '素手',
-};
+
 const SIZE_PRESETS = [3, 8, 18];
 const ERASER_PRESETS = [16, 40, 90];
 const TEXT_COLORS = ['#1A1A1A', '#FFFFFF', '#D64545', '#3D5A80'];

@@ -1,0 +1,77 @@
+<style>
+  @font-face {
+    font-family: "M PLUS 1p";
+    src: url("../fonts/m-plus-1p-japanese-400.ttf");
+    font-weight: 400;
+  }
+
+  .wrist {
+    flex-direction: column;
+    width: 30;
+    padding-top: 1.2;
+    padding-right: 1.2;
+    padding-bottom: 1.2;
+    padding-left: 1.2;
+    gap: 0.8;
+    border-radius: 2;
+    font-family: "M PLUS 1p";
+  }
+
+  .row {
+    flex-direction: row;
+    gap: 0.8;
+  }
+
+  .status {
+    font-family: "M PLUS 1p";
+    font-size: 1.5;
+    color: #e6e9ee;
+    line-height: 1.25;
+  }
+
+  .key {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    width: 13.4;
+    height: 5.6;
+    min-width: 0;
+    padding-top: 0;
+    padding-right: 0.6;
+    padding-bottom: 0;
+    padding-left: 0.6;
+    gap: 0.6;
+    border-radius: 1.4;
+    line-height: 1.25;
+  }
+
+  .key-label {
+    font-family: "M PLUS 1p";
+    font-size: 1.6;
+    line-height: 1.25;
+  }
+
+  .ico {
+    width: 2.2;
+    height: 2.2;
+  }
+</style>
+<Panel id="wrist-root" class="wrist">
+  <span id="wrist-hands" class="status">左手 素手 / 右手 ペン</span>
+  <div class="row">
+    <Button id="wrist-undo" class="key" variant="secondary"><Undo2 class="ico" /><ButtonLabel class="key-label">取り消し</ButtonLabel></Button>
+    <Button id="wrist-redo" class="key" variant="secondary"><Redo2 class="ico" /><ButtonLabel class="key-label">やり直し</ButtonLabel></Button>
+  </div>
+  <div class="row">
+    <Button id="wrist-next" class="key" variant="secondary"><ChevronLeft class="ico" /><ButtonLabel class="key-label">次のページ</ButtonLabel></Button>
+    <Button id="wrist-prev" class="key" variant="secondary"><ButtonLabel class="key-label">前のページ</ButtonLabel><ChevronRight class="ico" /></Button>
+  </div>
+  <div class="row">
+    <Button id="wrist-zoom-out" class="key" variant="secondary"><ZoomOut class="ico" /><ButtonLabel class="key-label">縮小</ButtonLabel></Button>
+    <Button id="wrist-zoom-in" class="key" variant="secondary"><ZoomIn class="ico" /><ButtonLabel class="key-label">拡大</ButtonLabel></Button>
+  </div>
+  <div class="row">
+    <Button id="wrist-swap" class="key" variant="primary"><ArrowLeftRight class="ico" /><ButtonLabel class="key-label">持ち替え</ButtonLabel></Button>
+    <Button id="wrist-recenter" class="key" variant="secondary"><LocateFixed class="ico" /><ButtonLabel class="key-label">正面に呼ぶ</ButtonLabel></Button>
+  </div>
+</Panel>

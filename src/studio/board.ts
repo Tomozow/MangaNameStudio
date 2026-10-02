@@ -447,8 +447,8 @@ export class BoardView {
     this.cursor.visible = false;
   }
 
-  /** Pen approach marker at board-root (x, y), `height` meters above the paper. */
-  showTipMarker(side: Side, x: number, y: number, height: number, touching: boolean, hoverRange = 0.07): void {
+  /** Pen approach marker at board-root (x, y), `height` of `hoverRange` meters above the paper. */
+  showTipMarker(side: Side, x: number, y: number, height: number, touching: boolean, hoverRange: number): void {
     this.tipMarkers[side].show(x, y, height, touching, hoverRange);
   }
 

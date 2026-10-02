@@ -22,6 +22,11 @@ export default defineAssets({
     type: AssetType.UIKitML,
     name: 'Diorama Palette',
   },
+  'wrist-menu': {
+    url: publicAssetUrl('ui/wrist.uikitml'),
+    type: AssetType.UIKitML,
+    name: 'Wrist Quick Menu',
+  },
   'diorama-preview': createDioramaPreview(),
   'studio-floor': createStudioFloor(),
   'stylus-pen': createPenPreview(),

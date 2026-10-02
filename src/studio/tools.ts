@@ -112,7 +112,7 @@ export class ToolController {
     return this.ctx.project.tools;
   }
 
-  /** Give `side` a tool and make it the acting hand (mouse and keyboard act as the right hand). */
+  /** Give `side` (default: the acting hand) a tool and make it the acting hand. */
   setTool(tool: ToolId, side: Side = this.focus): void {
     if (this.session != null) return;
     this.hands[side] = tool;
