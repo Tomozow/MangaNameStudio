@@ -4,6 +4,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  CircleGeometry,
   DoubleSide,
   Group,
   Line,
@@ -25,6 +26,7 @@ import {
   RASTER_H,
   RASTER_W,
   SPREAD_GAP,
+  type Side,
   type TextBox,
   type ToolId,
 } from './doc.js';
@@ -180,6 +182,37 @@ class SlotView {
   }
 }
 
+/** Where a pen tip will land: a ring that closes in on a dot as the tip approaches. */
+class TipMarker {
+  readonly root = new Group();
+  private readonly ring: Mesh;
+  private readonly ringMat = new MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true });
+  private readonly dotMat = new MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.9 });
+
+  constructor(ringGeo: RingGeometry, dotGeo: CircleGeometry) {
+    this.ring = new Mesh(ringGeo, this.ringMat);
+    const dot = new Mesh(dotGeo, this.dotMat);
+    dot.scale.setScalar(0.0012);
+    for (const m of [this.ring, dot]) {
+      m.renderOrder = 31;
+      m.raycast = () => undefined;
+      this.root.add(m);
+    }
+    this.root.visible = false;
+  }
+
+  show(x: number, y: number, height: number, touching: boolean, hoverRange: number): void {
+    const near = 1 - Math.min(1, height / hoverRange);
+    this.ring.scale.setScalar(0.0025 + height * 0.22);
+    this.ringMat.opacity = touching ? 0.95 : 0.3 + 0.55 * near;
+    const color = touching ? 0x4c8dff : 0xffffff;
+    this.ringMat.color.setHex(color);
+    this.dotMat.color.setHex(color);
+    this.root.position.set(x, y, 0.005);
+    this.root.visible = true;
+  }
+}
+
 export interface ClipView {
   canvas: HTMLCanvasElement;
   texture: CanvasTexture;
@@ -207,6 +240,7 @@ export class BoardView {
   private readonly clipMesh: Mesh;
   private readonly handles: Mesh[] = [];
   private readonly rotateKnob: Mesh;
+  private readonly tipMarkers: Record<Side, TipMarker>;
   private readonly tmp = new Vector3();
   private readonly lassoPts = new Float32Array(LASSO_MAX * 2);
   zoom = 1;
@@ -300,7 +334,10 @@ export class BoardView {
       this.cursor,
       ...this.handles,
     );
-    this.root.add(bezel, backdrop, this.content, this.hitPlane);
+    const ringGeo = new RingGeometry(0.82, 1, 40);
+    const dotGeo = new CircleGeometry(1, 16);
+    this.tipMarkers = { left: new TipMarker(ringGeo, dotGeo), right: new TipMarker(ringGeo, dotGeo) };
+    this.root.add(bezel, backdrop, this.content, this.hitPlane, this.tipMarkers.left.root, this.tipMarkers.right.root);
     this.applyZoom();
   }
 
@@ -408,6 +445,15 @@ export class BoardView {
 
   hideCursor(): void {
     this.cursor.visible = false;
+  }
+
+  /** Pen approach marker at board-root (x, y), `height` of `hoverRange` meters above the paper. */
+  showTipMarker(side: Side, x: number, y: number, height: number, touching: boolean, hoverRange: number): void {
+    this.tipMarkers[side].show(x, y, height, touching, hoverRange);
+  }
+
+  hideTipMarker(side: Side): void {
+    this.tipMarkers[side].root.visible = false;
   }
 
   beginStroke(slot: number, opacity: number): void {

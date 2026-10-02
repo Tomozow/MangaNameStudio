@@ -176,6 +176,10 @@
       <ButtonLabel class="tool-label">移動</ButtonLabel>
     </Button>
   </div>
+  <div id="hands-row" style="flex-direction: column; gap: 0.2; display: none">
+    <span id="hands-label" class="title">左手  素手    右手▶ペン</span>
+    <span class="caption">ツールは押した手に持たせます (左手のひらを向けるとメニュー)</span>
+  </div>
 
   <div class="divider" />
   <div id="section-ink" style="flex-direction: column; gap: 0.8">
@@ -262,5 +266,5 @@
       <Button id="exit-button" class="chip" variant="secondary" style="display: none"><LogOut class="ico-sm" /><ButtonLabel class="chip-label">VR終了</ButtonLabel></Button>
     </div>
   </div>
-  <span id="toast" class="caption">ようこそ。右手トリガーで描画、Aで取り消し、Bでやり直し</span>
+  <span id="toast" class="caption">ようこそ。VRではペンを持って描けます</span>
 </Panel>

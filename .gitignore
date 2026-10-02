@@ -43,3 +43,6 @@ pids/
 .cursor/mcp.json
 .vscode/mcp.json
 .codex/config.toml
+
+# Verification captures
+artifacts/
