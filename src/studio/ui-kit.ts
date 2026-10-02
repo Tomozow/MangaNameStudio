@@ -3,11 +3,16 @@ import { studioBridge } from './studio-ctx.js';
 
 type Cleanup = Array<() => void>;
 
+/** The part of a UIKit click event handlers use: which pointer pressed. */
+export interface ClickInfo {
+  pointerId?: number;
+}
+
 /** Wire a UIKit element click; adds a haptic tick and registers teardown. */
 export function bindButton(
   panel: UIKitMLAsset,
   id: string,
-  onClick: () => void,
+  onClick: (e: ClickInfo) => void,
   cleanup: Cleanup,
 ): void {
   const el = panel.getElementById(id);
@@ -16,10 +21,10 @@ export function bindButton(
     return;
   }
   el.name = id;
-  const handler = (): void => {
+  const handler = (e?: ClickInfo): void => {
     studioBridge.studio?.haptic(0.15);
     try {
-      onClick();
+      onClick(e ?? {});
     } catch (error) {
       console.error(`[MangaNameStudio] #${id} failed`, error);
       studioBridge.studio?.toast('操作に失敗しました');

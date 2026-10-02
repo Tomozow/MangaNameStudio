@@ -2,7 +2,11 @@
 // per frame for smooth strokes, mouse/poke via pointer events), controller and
 // keyboard shortcuts, autosave and panel refresh.
 import {
+  CylinderGeometry,
+  Group,
   InputComponent,
+  Mesh,
+  MeshStandardMaterial,
   PokeInteractable,
   RayInteractable,
   Vector3,
@@ -13,15 +17,16 @@ import {
   type UIKitMLAsset,
 } from '@iwsdk/core';
 import { Autosave } from './autosave.js';
-import { BoardView, WINDOW_H } from './board.js';
+import { BoardView, WINDOW_H, WINDOW_W } from './board.js';
 import { DioramaSystem } from './diorama.js';
-import { INNER_FRAME, PX_PER_M, readingSpreads, spreadIndexOf, type ToolId } from './doc.js';
+import { INNER_FRAME, PX_PER_M, SIDES, readingSpreads, spreadIndexOf, type Side, type ToolId } from './doc.js';
 import * as exporter from './export.js';
 import { History } from './history.js';
 import { ManagerUi } from './manager-ui.js';
 import { Navigator, STRIP_H } from './navigator.js';
 import * as ops from './page-ops.js';
 import { PaletteUi } from './palette-ui.js';
+import { PenRig } from './pens.js';
 import { Project, loadTemplate, type PageRt } from './project.js';
 import { References } from './refs.js';
 import * as storage from './storage.js';
@@ -32,8 +37,34 @@ import { applyJapaneseFont } from './ui-kit.js';
 import { ToolController, type BoardPoint } from './tools.js';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
-const SIDES = ['left', 'right'] as const;
-type Side = (typeof SIDES)[number];
+
+/** Paper surface height in board-root space. */
+const PAPER_Z = 0.002;
+/** Pen contact with the board, in meters above the paper (negative: through it). */
+const CONTACT = {
+  /** Touch down at this height and lift above `up`: the gap swallows tracking jitter. */
+  down: 0.004,
+  up: 0.018,
+  /** The board has no physical surface, so keep drawing while the tip sinks this far behind it. */
+  behind: 0.08,
+  /** Penetration that reaches full pressure. */
+  fullPress: 0.015,
+  /** Show the approach marker from this height. */
+  hover: 0.07,
+};
+
+function penPressure(height: number): number {
+  return 0.35 + 0.65 * Math.min(1, Math.max(0, (CONTACT.down - height) / CONTACT.fullPress));
+}
+
+/** Stand-in until the pen asset lands. */
+function placeholderPen(): Object3D {
+  const pen = new Group();
+  const body = new Mesh(new CylinderGeometry(0.0045, 0.0015, 0.14, 12), new MeshStandardMaterial({ color: '#d9dde4' }));
+  body.position.y = 0.07;
+  pen.add(body);
+  return pen;
+}
 
 interface BoardPointerEvent {
   pointerId: number;
@@ -44,8 +75,10 @@ interface BoardPointerEvent {
 interface ActivePointer {
   id: number;
   side: Side | null;
-  /** XR controller rays are sampled every frame; others follow events. */
+  /** XR controller rays and pen tips are sampled every frame; others follow events. */
   sampled: boolean;
+  /** Driven by a pen tip touching the board rather than a pointer event. */
+  pen: boolean;
   pressure: number;
   pan: { x: number; y: number } | null;
 }
@@ -61,6 +94,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private manager: ManagerUi | null = null;
   private refs: References | null = null;
   private autosave!: Autosave;
+  private pens!: PenRig;
+  /** What held pen tips may press: panels and the page strip (the board has its own contact logic). */
+  private readonly uiTargets: Object3D[] = [];
   private rig!: Object3D;
   private ready = false;
   private active: ActivePointer | null = null;
@@ -73,6 +109,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private yHeld = 0;
   private zoomLabel = 100;
   private grip: { mx: number; my: number; dist: number } | null = null;
+  private readonly armed: Record<Side, boolean> = { left: false, right: true };
+  /** A pen that touched down must lift before it can touch down again. */
+  private readonly penLatch: Record<Side, boolean> = { left: false, right: false };
+  private penHovering = false;
   private readonly openListeners: Array<(p: Project) => void> = [];
   private readonly p: BoardPoint = { x: 0, y: 0 };
   private readonly hoverStore: BoardPoint = { x: 0, y: 0 };
@@ -81,6 +121,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private readonly v3 = new Vector3();
   private readonly v4 = new Vector3();
   private readonly rayHit = new Vector3();
+  private readonly foot = new Vector3();
+  private readonly footLocal = { x: 0, y: 0 };
+  private readonly penHoverPoint: BoardPoint = { x: 0, y: 0 };
 
   init(): void {
     studioBridge.studio = this;
@@ -125,6 +168,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.rig = this.world.requireSceneObject('studio-rig');
     this.buildBoard();
     this.bindPanels();
+    this.buildPens();
     this.bindDomInput();
     this.watchImmersive();
     this.ready = true;
@@ -231,7 +275,6 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     const boardEntity = this.world.createTransformEntity(this.board.root, { parent: anchor });
     const hit = this.world.createTransformEntity(this.board.hitPlane, { parent: boardEntity });
     hit.addComponent(RayInteractable);
-    hit.addComponent(PokeInteractable);
     this.listen(this.board.hitPlane, {
       pointerdown: (e) => this.onBoardDown(e),
       pointermove: (e) => this.onBoardMove(e),
@@ -251,6 +294,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     const navEntity: Entity = this.world.createTransformEntity(this.navigator.root, { parent: boardEntity });
     const navHit = this.world.createTransformEntity(this.navigator.hitPlane, { parent: navEntity });
     navHit.addComponent(RayInteractable);
+    navHit.addComponent(PokeInteractable);
     let navPointer: number | null = null;
     this.listen(this.navigator.hitPlane, {
       pointerdown: (e) => {
@@ -294,7 +338,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.palette = new PaletteUi(this.world, toolPanel, this, this.tools, {
         undo: () => this.undo(),
         redo: () => this.redo(),
-        setTool: (tool) => this.setTool(tool),
+        setTool: (tool, pointerId) => this.setTool(tool, this.sideOfPointer(pointerId)),
       }, c);
     }
     const managerPanel = this.world.getSceneObject<UIKitMLAsset>('manager');
@@ -338,6 +382,15 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       }, c);
       this.refs = new References(this.world, this, this.tools, managerPanel, c);
     }
+  }
+
+  private buildPens(): void {
+    this.pens = new PenRig(this.world, placeholderPen);
+    for (const id of ['tool-palette', 'manager', 'diorama-palette']) {
+      const panel = this.world.getSceneObject(id);
+      if (panel != null) this.uiTargets.push(panel);
+    }
+    this.uiTargets.push(this.navigator.hitPlane);
   }
 
   private bindDomInput(): void {
@@ -413,6 +466,12 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
 
   // ---------- board input ----------
 
+  /** Which hand a pointer (pen tip, ray or fingertip) belongs to; undefined for the mouse. */
+  sideOfPointer(pointerId: number | undefined): Side | undefined {
+    if (pointerId == null) return undefined;
+    return this.pens?.sideOfPointer(pointerId) ?? this.sideOf(pointerId).side ?? undefined;
+  }
+
   private sideOf(pointerId: number): { side: Side | null; ray: boolean; hand: boolean } {
     for (const side of SIDES) {
       const pointers = this.input.xr.multiPointers[side];
@@ -432,12 +491,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     if (!this.ready || this.active != null) return;
     if (this.textInput.active) this.textInput.commit();
     const { side, ray, hand } = this.sideOf(e.pointerId);
-    const inkTool = this.tools.tool === 'pen' || this.tools.tool === 'eraser';
-    // Pinch rays jitter too much for ink; hands draw by touching (poke) instead.
-    if (ray && hand && inkTool) {
-      this.toast('ハンドトラッキングでは指先でボードに触れて描けます');
-      return;
-    }
+    // Mouse and pen tablets act as the right hand.
+    this.tools.useHand(side ?? 'right');
+    // Hands act on the board through their pens; an empty hand's pinch ray only moves it.
+    if (ray && hand && this.tools.tool !== 'hand') return;
     if (side != null) this.lastSide = side;
     const sampled = ray && !hand && side != null;
     let pressure = 1;
@@ -448,7 +505,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.tools.tapSlopPx = sampled ? 48 : side != null ? 24 : 10;
     this.triggerAtDown = sampled ? this.triggerValue(side!) : 0;
     if (sampled) pressure = this.pressureFromTrigger(side!);
-    const active: ActivePointer = { id: e.pointerId, side, sampled, pressure, pan: null };
+    const active: ActivePointer = { id: e.pointerId, side, sampled, pen: false, pressure, pan: null };
     this.active = active;
     this.board.toBoard(e.point, this.p);
     this.focusPageAt(this.p);
@@ -505,7 +562,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     return 0.35 + 0.65 * Math.min(1, Math.max(0, t));
   }
 
-  private setHover(p: BoardPoint | null): void {
+  private setHover(p: BoardPoint | null, tool?: ToolId): void {
     if (p == null) {
       this.hoverPoint = null;
     } else {
@@ -513,7 +570,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.hoverStore.y = p.y;
       this.hoverPoint = this.hoverStore;
     }
-    this.tools.hover(p);
+    this.tools.hover(p, tool);
   }
 
   /** Clicking on the other page of a spread makes it the current page. */
@@ -551,8 +608,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   update(delta: number): void {
     if (!this.ready) return;
     this.board.updateClipPlanes();
+    this.updatePens(delta);
     const active = this.active;
-    if (active?.sampled && active.side != null) {
+    if (active?.pen && active.side != null) {
+      this.trackPen(active, active.side);
+    } else if (active?.sampled && active.side != null) {
       const pad = this.input.xr.gamepads[active.side];
       const held = pad?.getButtonPressed(InputComponent.Trigger) ?? false;
       if (!held) {
@@ -566,6 +626,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.domReleased = false;
       if (this.active != null && !this.active.sampled) this.onBoardUp(this.active.id);
     }
+    this.penContacts();
     this.controllerShortcuts(delta);
     // Refresh at most two stale thumbnails per frame, never mid-stroke.
     const order = this.project.order;
@@ -574,6 +635,105 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.thumbCursor = (this.thumbCursor + 1) % order.length;
       if (this.project.pages.get(order[this.thumbCursor]!)?.refreshThumb()) budget--;
     }
+  }
+
+  // ---------- pens ----------
+
+  /** Track pens and keep IWSDK's own pointers out of a pen hand's way. */
+  private updatePens(delta: number): void {
+    const hands = this.tools.hands;
+    this.armed.left = hands.left !== 'hand';
+    this.armed.right = hands.right !== 'hand';
+    this.pens.update(delta, this.armed);
+    for (const side of SIDES) {
+      const pen = this.pens.pens[side];
+      const pointers = this.input.xr.multiPointers[side];
+      // A pen grip reads as a pinch, so a hand holding a pen never fires its ray.
+      pointers.toggleSubPointer('ray', !(pen.armed && pen.source === 'hand'));
+      // While the pen is held its tip replaces the fingertip (or controller) poke.
+      pointers.toggleSubPointer('touch', !(pen.armed && pen.held));
+    }
+    this.pens.pressUi(this.uiTargets);
+  }
+
+  /**
+   * Height of a held pen's tip above the paper, leaving its foot point in
+   * `foot` (world) and `footLocal` (board root). Null when off the board.
+   */
+  private penHeight(side: Side, margin: number): number | null {
+    const pen = this.pens.pens[side];
+    if (!pen.armed || !pen.held || pen.source == null) return null;
+    const root = this.board.root;
+    const local = root.worldToLocal(this.v1.copy(pen.tip));
+    if (Math.abs(local.x) > WINDOW_W / 2 + margin || Math.abs(local.y) > WINDOW_H / 2 + margin) return null;
+    this.footLocal.x = local.x;
+    this.footLocal.y = local.y;
+    root.localToWorld(this.foot.set(local.x, local.y, PAPER_Z));
+    return local.z - PAPER_Z;
+  }
+
+  private trackPen(active: ActivePointer, side: Side): void {
+    const height = this.penHeight(side, 0.02);
+    if (height == null || height > CONTACT.up || height < -CONTACT.behind) {
+      this.onBoardUp(active.id);
+      return;
+    }
+    active.pressure = penPressure(height);
+    this.moveActive(this.foot);
+  }
+
+  /** Touch-down, approach markers and the brush cursor for held pens. */
+  private penContacts(): void {
+    let nearest: Side | null = null;
+    let best = Infinity;
+    for (const side of SIDES) {
+      const height = this.penHeight(side, 0);
+      if (height == null || height > CONTACT.up) this.penLatch[side] = false;
+      if (height == null || height > CONTACT.hover || height < -CONTACT.behind) {
+        this.board.hideTipMarker(side);
+        continue;
+      }
+      const drawing = this.active?.pen === true && this.active.side === side;
+      this.board.showTipMarker(side, this.footLocal.x, this.footLocal.y, Math.max(0, height), drawing);
+      if (height < best) {
+        best = height;
+        nearest = side;
+        this.board.toBoard(this.foot, this.penHoverPoint);
+      }
+      if (this.active == null && !this.penLatch[side] && height <= CONTACT.down && !this.pens.onUi(side)) {
+        this.penLatch[side] = true;
+        this.beginPen(side, height);
+      }
+    }
+    if (nearest != null) {
+      this.penHovering = true;
+      if (this.active == null) this.setHover(this.penHoverPoint, this.tools.hands[nearest]);
+    } else if (this.penHovering) {
+      this.penHovering = false;
+      if (this.active == null) this.setHover(null);
+    }
+  }
+
+  /** A held pen touched the board: start a session as that hand's tool. */
+  private beginPen(side: Side, height: number): void {
+    const pen = this.pens.pens[side];
+    if (this.textInput.active) this.textInput.commit();
+    this.tools.useHand(side);
+    this.lastSide = side;
+    // Fingers wobble more than a controller when tapping.
+    this.tools.tapSlopPx = pen.source === 'hand' ? 28 : 16;
+    const pressure = penPressure(height);
+    const active: ActivePointer = { id: pen.pointer.id, side, sampled: true, pen: true, pressure, pan: null };
+    this.active = active;
+    this.board.toBoard(this.foot, this.p);
+    this.focusPageAt(this.p);
+    this.tools.down(active.id, this.p, pressure);
+    if (!this.tools.busy) {
+      this.active = null;
+      return;
+    }
+    this.haptic(0.2);
+    this.palette?.refresh();
   }
 
   /** Both grips held: move hands apart/together to zoom, move them together to pan. */
@@ -629,7 +789,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       }
     }
     if (left != null) {
-      if (left.getButtonDown(InputComponent.X_Button)) this.setTool(this.tools.tool === 'pen' ? 'eraser' : 'pen');
+      if (left.getButtonDown(InputComponent.X_Button)) {
+        const side = this.lastSide;
+        this.setTool(this.tools.hands[side] === 'pen' ? 'eraser' : 'pen', side);
+      }
       // Recenter on a 0.5 s hold so a stray press never yanks the desk away.
       if (left.getButtonPressed(InputComponent.Y_Button)) {
         this.yHeld += delta;
@@ -648,9 +811,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
 
   // ---------- actions ----------
 
-  setTool(tool: ToolId): void {
+  /** Hand `side` (default: the acting hand) a tool. */
+  setTool(tool: ToolId, side?: Side): void {
     if (this.tools.busy) return;
-    this.tools.setTool(tool);
+    this.tools.setTool(tool, side);
+    if (side != null) this.lastSide = side;
     this.palette?.refresh();
     this.haptic(0.2);
   }
@@ -752,6 +917,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.redo();
       return;
     }
+    if (import.meta.env.DEV && e.key === 'F8') {
+      console.info('[mns-debug]', JSON.stringify(this.debugState()));
+      return;
+    }
     if (import.meta.env.DEV && e.key === 'F9') {
       void import('./selftest.js').then((m) => m.runSelfTest(this));
       return;
@@ -807,6 +976,43 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
         return;
     }
     this.palette?.refresh();
+  }
+
+  /** Dev-only snapshot of input state for emulator checks (F8 logs it). */
+  private debugState(): Record<string, unknown> {
+    const round = (v: Vector3) => [v.x, v.y, v.z].map((n) => Math.round(n * 1000) / 1000);
+    const pens: Record<string, unknown> = {};
+    for (const side of SIDES) {
+      const pen = this.pens.pens[side];
+      const pointers = this.input.xr.multiPointers[side];
+      pens[side] = {
+        source: pen.source,
+        armed: pen.armed,
+        held: pen.held,
+        tip: round(pen.tip),
+        axis: round(pen.axis),
+        height: this.penHeight(side, 0),
+        uiPointer: pen.pointer.getEnabled(),
+        ray: pointers.getPointer('ray').getEnabled(),
+        touch: pointers.getPointer('touch').getEnabled(),
+      };
+    }
+    const palette = this.world.getSceneObject<UIKitMLAsset>('tool-palette');
+    const button = palette?.getElementById('tool-eraser') as unknown as Object3D | undefined;
+    const ui = button != null && palette != null
+      ? { eraser: round(button.getWorldPosition(new Vector3())), normal: round(new Vector3(0, 0, 1).transformDirection(palette.matrixWorld)) }
+      : null;
+    return {
+      ui,
+      tool: this.tools.tool,
+      hands: this.tools.hands,
+      focus: this.tools.focus,
+      busy: this.tools.busy,
+      active: this.active,
+      zoom: Math.round(this.board.zoom * 100) / 100,
+      history: (this.history as unknown as { past: Array<{ label: string }> }).past.map((h) => h.label),
+      pens,
+    };
   }
 
   // ---------- projects ----------

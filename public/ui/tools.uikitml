@@ -176,6 +176,10 @@
       <ButtonLabel class="tool-label">移動</ButtonLabel>
     </Button>
   </div>
+  <div id="hands-row" class="spread" style="display: none">
+    <span id="hands-label" class="value" style="width: 18">左手  素手   右手▶ペン</span>
+    <span class="caption">押した手が持ちます</span>
+  </div>
 
   <div class="divider" />
   <div id="section-ink" style="flex-direction: column; gap: 0.8">

@@ -42,6 +42,10 @@ export type ToolId =
   | 'lasso'
   | 'hand';
 
+/** Which hand (or controller) holds a tool. */
+export type Side = 'left' | 'right';
+export const SIDES: readonly Side[] = ['left', 'right'];
+
 export type WritingMode = 'vertical' | 'horizontal';
 
 export interface TextBox {

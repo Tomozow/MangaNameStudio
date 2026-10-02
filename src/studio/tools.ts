@@ -8,6 +8,7 @@ import {
   RASTER_W,
   TRIM_FRAME,
   newId,
+  type Side,
   type TextBox,
   type ToolId,
 } from './doc.js';
@@ -59,10 +60,14 @@ type Session =
 
 const ONE_EURO_BETA = 0.004;
 
-/** One Euro filter (Casiez et al.) for one axis, in raster px. */
-class OneEuro {
+/** One Euro filter (Casiez et al.) for one axis. */
+export class OneEuro {
   private dx = 0;
   constructor(private x: number) {}
+  reset(x: number): void {
+    this.x = x;
+    this.dx = 0;
+  }
   filter(v: number, dt: number, minCutoff: number, beta: number): number {
     const a = (cutoff: number) => 1 / (1 + 1 / (2 * Math.PI * cutoff * dt));
     const d = (v - this.x) / dt;
@@ -77,7 +82,11 @@ const FRAME_EDGES_X = [0, BLEED_FRAME.x, TRIM_FRAME.x, INNER_FRAME.x, INNER_FRAM
 const FRAME_EDGES_Y = [0, BLEED_FRAME.y, TRIM_FRAME.y, INNER_FRAME.y, INNER_FRAME.y + INNER_FRAME.h, TRIM_FRAME.y + TRIM_FRAME.h, BLEED_FRAME.y + BLEED_FRAME.h, RASTER_H];
 
 export class ToolController {
+  /** Tool of the acting hand: the last one assigned or used. */
   tool: ToolId = 'pen';
+  /** Tool held by each hand. 'hand' (移動) means an empty hand. */
+  readonly hands: Record<Side, ToolId> = { left: 'hand', right: 'pen' };
+  focus: Side = 'right';
   selectedText: { page: PageRt; id: string } | null = null;
   /** Dialogue waiting to be dropped by the next text-tool tap (script / PDF). */
   pendingText: string | null = null;
@@ -103,8 +112,23 @@ export class ToolController {
     return this.ctx.project.tools;
   }
 
-  setTool(tool: ToolId): void {
-    if (this.session != null || tool === this.tool) return;
+  /** Give `side` a tool and make it the acting hand (mouse and keyboard act as the right hand). */
+  setTool(tool: ToolId, side: Side = this.focus): void {
+    if (this.session != null) return;
+    this.hands[side] = tool;
+    this.focus = side;
+    this.activate(tool);
+  }
+
+  /** Make `side` the acting hand, e.g. right before its pen touches the board. */
+  useHand(side: Side): void {
+    if (this.session != null) return;
+    this.focus = side;
+    this.activate(this.hands[side]);
+  }
+
+  private activate(tool: ToolId): void {
+    if (tool === this.tool) return;
     if (tool !== 'select' && tool !== 'lasso') this.selection.commit();
     if (tool !== 'text') this.selectText(null);
     this.tool = tool;
@@ -120,13 +144,12 @@ export class ToolController {
     this.selectText(null);
   }
 
-  hover(p: BoardPoint | null): void {
+  hover(p: BoardPoint | null, t: ToolId = this.tool): void {
     const board = this.ctx.board;
     if (p == null || this.session?.kind === 'marquee') {
       board.hideCursor();
       return;
     }
-    const t = this.tool;
     if (t !== 'pen' && t !== 'eraser' && t !== 'line' && t !== 'frame') {
       board.hideCursor();
       return;

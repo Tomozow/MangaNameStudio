@@ -1,12 +1,22 @@
 // Tool palette (left panel): tools, colours, sizes, context sections, undo/redo.
 import { VisibilityState, type UIKitMLAsset, type World } from '@iwsdk/core';
-import { PALETTE, newId, type ToolId } from './doc.js';
+import { PALETTE, newId, type Side, type ToolId } from './doc.js';
 import { addClipToStock } from './page-ops.js';
 import type { StudioApi } from './studio-ctx.js';
 import type { ToolController } from './tools.js';
 import { applyJapaneseFont, bindButton, setChip, setProps, setText, setVisible } from './ui-kit.js';
 
 const TOOLS: ToolId[] = ['pen', 'eraser', 'line', 'frame', 'text', 'select', 'lasso', 'hand'];
+const TOOL_NAMES: Record<ToolId, string> = {
+  pen: 'ペン',
+  eraser: '消しゴム',
+  line: '直線',
+  frame: 'コマ枠',
+  text: 'テキスト',
+  select: '選択',
+  lasso: '投げ縄',
+  hand: '素手',
+};
 const SIZE_PRESETS = [3, 8, 18];
 const ERASER_PRESETS = [16, 40, 90];
 const TEXT_COLORS = ['#1A1A1A', '#FFFFFF', '#D64545', '#3D5A80'];
@@ -14,18 +24,20 @@ const SAVE_LABEL = { saved: '保存済み', pending: '未保存', saving: '保�
 
 export class PaletteUi {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private immersive = false;
 
   constructor(
     private readonly world: World,
     private readonly panel: UIKitMLAsset,
     private readonly studio: StudioApi,
     private readonly tools: ToolController,
-    private readonly actions: { undo(): void; redo(): void; setTool(tool: ToolId): void },
+    private readonly actions: { undo(): void; redo(): void; setTool(tool: ToolId, pointerId?: number): void },
     cleanup: Array<() => void>,
   ) {
     const c = cleanup;
     applyJapaneseFont(panel, 'tool-root');
-    for (const tool of TOOLS) bindButton(panel, `tool-${tool}`, () => actions.setTool(tool), c);
+    // The hand that presses a tool button takes that tool.
+    for (const tool of TOOLS) bindButton(panel, `tool-${tool}`, (e) => actions.setTool(tool, e.pointerId), c);
     for (const [i, color] of PALETTE.entries()) {
       bindButton(panel, `swatch-${i}`, () => this.patch({ penColor: color }), c);
     }
@@ -115,6 +127,8 @@ export class PaletteUi {
           const flat = state === VisibilityState.NonImmersive;
           setVisible(panel, 'xr-button', flat);
           setVisible(panel, 'exit-button', !flat);
+          this.immersive = !flat;
+          this.refresh();
         }),
       );
     }
@@ -135,6 +149,10 @@ export class PaletteUi {
     const t = this.studio.project.tools;
     const tool = this.tools.tool;
     for (const id of TOOLS) setChip(panel, `tool-${id}`, id === tool);
+    const hands = this.tools.hands;
+    const label = (side: Side) => `${side === 'left' ? '左手' : '右手'}${this.tools.focus === side ? '▶' : ' '}${TOOL_NAMES[hands[side]]}`;
+    setVisible(panel, 'hands-row', this.immersive);
+    if (this.immersive) setText(panel, 'hands-label', `${label('left')}   ${label('right')}`);
     const ink = tool === 'pen' || tool === 'eraser' || tool === 'line' || tool === 'frame' || tool === 'hand';
     setVisible(panel, 'section-ink', ink);
     setVisible(panel, 'section-text', tool === 'text');
