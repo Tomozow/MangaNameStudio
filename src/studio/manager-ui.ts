@@ -234,6 +234,12 @@ export class ManagerUi {
     const pages = Math.max(1, Math.ceil(list.length / STOCK_SLOTS));
     this.stockPage = Math.min(this.stockPage, pages - 1);
     setText(panel, 'stock-page-label', `${this.stockPage + 1}/${pages}`);
+    // Clips that left the stock free their thumbnails (an undo that brings one back redraws it).
+    for (const [id, t] of this.clipTextures) {
+      if (project.stock.some((s) => s.kind === 'clip' && s.id === id)) continue;
+      t.dispose();
+      this.clipTextures.delete(id);
+    }
     for (let i = 0; i < STOCK_SLOTS; i++) {
       const entry = list[this.stockPage * STOCK_SLOTS + i];
       if (entry == null) {

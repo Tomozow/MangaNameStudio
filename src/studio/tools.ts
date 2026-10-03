@@ -696,6 +696,14 @@ export class ToolController {
         }
       },
       onCommit: (value) => {
+        if (created != null && value.trim().length === 0) {
+          // A new text left empty is dropped however the edit ends: no invisible box, no undo step.
+          page.texts = page.texts.filter((t) => t.id !== text.id);
+          page.markTexts();
+          if (this.selectedText?.id === text.id) this.selectText(null);
+          else this.ctx.refreshTexts();
+          return;
+        }
         text.content = value;
         fitTextBox(text);
         page.markTexts();
