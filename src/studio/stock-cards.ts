@@ -228,8 +228,8 @@ export class StockCards {
       projectRays: false,
       filter: () => !card.carried,
       apply: (state, target) => {
-        target.position.copy(state.current.position);
         if (state.first) this.beginMove(card);
+        target.position.copy(state.current.position);
         if (card.dragged !== !state.last) {
           card.dragged = !state.last;
           if (state.last) card.released = true;
@@ -396,7 +396,7 @@ export class StockCards {
       if (drop?.kind === 'insert') text = `離すと${drop.index + 1}ページ目に戻す`;
       else if (drop?.kind === 'paste') text = '離すとここに貼る';
       else if (moving) text = page ? 'ボードかページ列で離すと戻す' : 'ページの上で離すと貼る';
-      else text = page ? 'ストックのページ' : 'ストックの切り抜き';
+      else text = page ? 'ストックのページ' : 'ストックのクリップ';
       this.drawBadge(card, text);
     }
     this.paint(card);

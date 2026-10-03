@@ -121,6 +121,8 @@ export class ManagerUi {
   private confirm(key: string, labelId: string, armedText = 'もう一度押して実行'): boolean {
     const now = performance.now();
     if (this.armed?.key === key && now - this.armed.time < 3000) {
+      // A pen tip bouncing on the key (touch has no hysteresis) is not a confirmation.
+      if (now - this.armed.time < 400) return false;
       this.armed = null;
       this.refreshLabels();
       return true;
