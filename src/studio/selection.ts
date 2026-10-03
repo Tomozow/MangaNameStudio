@@ -9,6 +9,7 @@ import { clampRect, makePatch, inkEntry, opaqueBounds, unionRect, type Rect, typ
 import { canvasTexture, composeClip, ctx2d, makeCanvas, type PageRt } from './project.js';
 import type { ClipView, SlotRect } from './board.js';
 import type { StudioCtx } from './studio-ctx.js';
+import { drawTexts } from './text-render.js';
 
 type DragMode = 'move' | 'scale' | 'rotate';
 
@@ -34,6 +35,8 @@ interface FloatingClip extends ClipView {
   display: HTMLCanvasElement;
   /** Texts carried with the clip, in clip px. */
   texts: TextBox[];
+  /** `display` draws the texts mirrored, so a flipped clip shows them readable as they will land. */
+  mirrored: boolean;
   /** Stock clip this came from: it leaves the stock when the clip is placed. */
   stockId: string | null;
 }
@@ -237,6 +240,7 @@ export class Selection {
       canvas: trimmed,
       display,
       texts,
+      mirrored: false,
       stockId: null,
       texture: canvasTexture(display),
       cx: minX + (x0 + tw / 2) / PX_PER_M,
@@ -281,6 +285,7 @@ export class Selection {
       canvas,
       display,
       texts,
+      mirrored: false,
       stockId: from?.stockId ?? null,
       texture: canvasTexture(display),
       cx,
@@ -469,9 +474,8 @@ export class Selection {
       return true;
     }
     const id = newId('clip');
-    const ink = makeCanvas(clip.canvas.width, clip.canvas.height);
-    ctx2d(ink).drawImage(clip.canvas, 0, 0);
-    project.clips.set(id, ink);
+    // The clip is done with its ink canvas (finish never frees it): the stock keeps it.
+    project.clips.set(id, clip.canvas);
     const texts = copyTexts(clip.texts);
     const same = (s: StockItem) => s.kind === 'clip' && s.id === id;
     this.finish(this.cutPatches(clip), 'ストックへ切り出し', {
@@ -699,9 +703,23 @@ export class Selection {
   }
 
   private show(): void {
-    if (this.clip == null) return;
-    this.clip.texture.needsUpdate = true;
-    this.ctx.board.showClip(this.clip);
+    const clip = this.clip;
+    if (clip == null) return;
+    // Placed texts never mirror: a flipped clip draws them mirrored so they read the same.
+    if (clip.texts.length > 0 && clip.sx < 0 !== clip.mirrored) {
+      clip.mirrored = clip.sx < 0;
+      const w = clip.display.width;
+      const c = ctx2d(clip.display);
+      c.clearRect(0, 0, w, clip.display.height);
+      c.drawImage(clip.canvas, 0, 0);
+      c.save();
+      if (clip.mirrored) c.setTransform(-1, 0, 0, 1, w, 0);
+      drawTexts(c, clip.mirrored ? clip.texts.map((t) => ({ ...t, x: w - t.x - t.w })) : clip.texts, 1);
+      c.restore();
+      // Only a redraw needs an upload; moving the clip does not.
+      clip.texture.needsUpdate = true;
+    }
+    this.ctx.board.showClip(clip);
   }
 
   private rectPoints(): number[] {
