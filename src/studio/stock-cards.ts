@@ -54,7 +54,8 @@ interface Card {
   readonly group: Group;
   readonly entity: Entity;
   readonly backing: Mesh<BoxGeometry, MeshBasicMaterial>;
-  readonly badge: { canvas: HTMLCanvasElement; texture: CanvasTexture; text: string };
+  /** Caption under the thumbnail; `state` says which text it shows (see `setDrop`). */
+  readonly badge: { canvas: HTMLCanvasElement; texture: CanvasTexture; state: number };
   readonly handle: HandleStore<void>;
   /** Resources this card owns (a page card shows the page's own thumbnail texture). */
   readonly owned: Array<{ dispose(): void }>;
@@ -81,7 +82,9 @@ export class StockCards {
   private readonly v = new Vector3();
   private readonly local = new Vector3();
   private readonly head = new Vector3();
-  private readonly at: BoardPoint = { x: 0, y: 0 };
+  /** `dropAt` results, reused: it runs every frame while a card moves. */
+  private readonly insert = { kind: 'insert' as const, index: 0 };
+  private readonly paste = { kind: 'paste' as const, at: { x: 0, y: 0 } as BoardPoint };
 
   constructor(
     private readonly world: World,
@@ -183,25 +186,29 @@ export class StockCards {
       map = canvasTexture(canvas);
       owned.push(map);
       const s = CARD.size / Math.max(canvas.width, canvas.height);
-      w = Math.max(0.03, canvas.width * s);
-      h = Math.max(0.03, canvas.height * s);
+      w = canvas.width * s;
+      h = canvas.height * s;
     }
     const group = new Group();
     group.name = `StockCard ${item.kind}`;
-    // Dark card with the thumbnail on top and a caption strip below it.
-    const cardW = w + 2 * CARD.margin;
-    const cardH = h + 3 * CARD.margin + CARD.badge;
+    // Dark card with the thumbnail on top and a caption strip below it, never narrower
+    // than a page card so a tall, thin clip's caption stays readable. A thin clip keeps
+    // its shape inside a taller slot.
+    const captionW = Math.max(w, (CARD.size * RASTER_W) / RASTER_H);
+    const thumbH = Math.max(h, 0.03);
+    const cardW = captionW + 2 * CARD.margin;
+    const cardH = thumbH + 3 * CARD.margin + CARD.badge;
     const backing = new Mesh(new BoxGeometry(cardW, cardH, 0.004), new MeshBasicMaterial({ color: COLORS.idle }));
     backing.name = 'CardBacking';
-    const thumbY = cardH / 2 - CARD.margin - h / 2;
+    const thumbY = cardH / 2 - CARD.margin - thumbH / 2;
     const paper = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ color: 0xf6f4ee }));
     paper.position.set(0, thumbY, 0.0021);
     const thumb = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ map, transparent: true }));
     thumb.position.set(0, thumbY, 0.0023);
-    const badgeCanvas = makeCanvas(512, Math.round((512 * CARD.badge) / w));
+    const badgeCanvas = makeCanvas(512, Math.round((512 * CARD.badge) / captionW));
     const badgeTexture = canvasTexture(badgeCanvas);
     owned.push(badgeTexture);
-    const badgeMesh = new Mesh(new PlaneGeometry(w, CARD.badge), new MeshBasicMaterial({ map: badgeTexture, transparent: true }));
+    const badgeMesh = new Mesh(new PlaneGeometry(captionW, CARD.badge), new MeshBasicMaterial({ map: badgeTexture, transparent: true }));
     badgeMesh.position.set(0, -cardH / 2 + CARD.margin + CARD.badge / 2, 0.0022);
     for (const mesh of [paper, thumb, badgeMesh]) mesh.raycast = () => undefined;
     group.add(backing, paper, thumb, badgeMesh);
@@ -230,7 +237,7 @@ export class StockCards {
       group,
       entity,
       backing,
-      badge: { canvas: badgeCanvas, texture: badgeTexture, text: '' },
+      badge: { canvas: badgeCanvas, texture: badgeTexture, state: NaN },
       handle: new HandleStore<void>(group, () => options),
       owned,
       hovers: new Set(),
@@ -292,7 +299,7 @@ export class StockCards {
     };
     card.unregister = this.grab.add(card.target);
     this.cards.set(key(item), card);
-    this.paint(card);
+    this.setDrop(card, null);
     return card;
   }
 
@@ -327,19 +334,24 @@ export class StockCards {
     const world = card.group.getWorldPosition(this.v);
     if (card.item.kind === 'page') {
       const index = this.navigator.dropIndex(world);
-      if (index != null) return { kind: 'insert', index };
+      if (index != null) {
+        this.insert.index = index;
+        return this.insert;
+      }
     }
     const board = this.studio.board;
     const local = board.root.worldToLocal(this.local.copy(world));
     if (Math.abs(local.x) > WINDOW_W / 2 || Math.abs(local.y) > WINDOW_H / 2) return null;
     if (local.z > DROP_DEPTH.front || local.z < -DROP_DEPTH.behind) return null;
-    board.toBoard(world, this.at);
-    const slot = board.slotAt(this.at.x, this.at.y);
+    const at = this.paste.at;
+    board.toBoard(world, at);
+    const slot = board.slotAt(at.x, at.y);
     const page = slot >= 0 ? board.slots[slot]!.page : null;
-    if (card.item.kind === 'clip') return page != null ? { kind: 'paste', at: { x: this.at.x, y: this.at.y } } : null;
+    if (card.item.kind === 'clip') return page != null ? this.paste : null;
     // A page dropped on the board goes right after the page it was dropped on.
     const anchor = page?.id ?? project.currentPage;
-    return { kind: 'insert', index: anchor != null ? project.order.indexOf(anchor) + 1 : project.order.length };
+    this.insert.index = anchor != null ? project.order.indexOf(anchor) + 1 : project.order.length;
+    return this.insert;
   }
 
   private land(card: Card): void {
@@ -370,20 +382,23 @@ export class StockCards {
   private setDrop(card: Card, drop: Drop): void {
     card.drop = drop;
     const moving = card.carried || card.dragged;
-    const page = card.item.kind === 'page';
-    let text: string;
-    if (drop?.kind === 'insert') text = `離すと${drop.index + 1}ページ目に戻す`;
-    else if (drop?.kind === 'paste') text = '離すとここに貼る';
-    else if (moving) text = page ? 'ボードかページ列で離すと戻す' : 'ページの上で離すと貼る';
-    else text = page ? 'ストックのページ' : 'ストックの切り抜き';
-    this.drawBadge(card, text);
+    // Redraw the caption only when it changes: this runs every frame while a card moves.
+    const state = drop == null ? (moving ? -1 : -2) : drop.kind === 'paste' ? 0 : drop.index + 1;
+    if (state !== card.badge.state) {
+      card.badge.state = state;
+      const page = card.item.kind === 'page';
+      let text: string;
+      if (drop?.kind === 'insert') text = `離すと${drop.index + 1}ページ目に戻す`;
+      else if (drop?.kind === 'paste') text = '離すとここに貼る';
+      else if (moving) text = page ? 'ボードかページ列で離すと戻す' : 'ページの上で離すと貼る';
+      else text = page ? 'ストックのページ' : 'ストックの切り抜き';
+      this.drawBadge(card, text);
+    }
     this.paint(card);
   }
 
   private drawBadge(card: Card, text: string): void {
     const badge = card.badge;
-    if (badge.text === text) return;
-    badge.text = text;
     const c = ctx2d(badge.canvas);
     const { width, height } = badge.canvas;
     c.clearRect(0, 0, width, height);
@@ -396,7 +411,6 @@ export class StockCards {
   }
 
   private paint(card: Card): void {
-    if (card.badge.text === '') this.drawBadge(card, card.item.kind === 'page' ? 'ストックのページ' : 'ストックの切り抜き');
     const moving = card.carried || card.dragged;
     const color = moving && card.drop != null
       ? COLORS.drop

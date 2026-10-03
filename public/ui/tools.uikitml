@@ -260,6 +260,8 @@
     <span id="lift-label" class="value">離れ 2.5mm</span>
     <Button id="lift-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
     <Button id="lift-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+  </div>
+  <div class="row">
     <Button id="opt-pen-filter" class="chip" variant="primary"><ButtonLabel class="chip-label">位置補正</ButtonLabel></Button>
     <Button id="opt-stroke-filter" class="chip" variant="primary"><ButtonLabel class="chip-label">線補正</ButtonLabel></Button>
   </div>

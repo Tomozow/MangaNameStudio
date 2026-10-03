@@ -269,13 +269,15 @@ export class Navigator {
       return null;
     }
     const index = this.insertIndex(p.x);
-    this.marker.position.set(this.boundaryX(index), TILE_Y, 0.005);
-    this.marker.visible = true;
+    // A reorder drag owns the marker while it runs.
+    if (this.press == null) {
+      this.marker.position.set(this.boundaryX(index), TILE_Y, 0.005);
+      this.marker.visible = true;
+    }
     return index;
   }
 
   hideDrop(): void {
-    // A reorder drag owns the marker while it runs.
     if (this.press == null) this.marker.visible = false;
   }
 
