@@ -25,6 +25,8 @@ import { Navigator, STRIP_H } from './navigator.js';
 import * as ops from './page-ops.js';
 import { PaletteUi } from './palette-ui.js';
 import { PenRig } from './pens.js';
+import { StockCards } from './stock-cards.js';
+import { prefs } from './prefs.js';
 import { Project, loadTemplate, type PageRt } from './project.js';
 import { References } from './refs.js';
 import * as storage from './storage.js';
@@ -40,11 +42,12 @@ const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 /** Paper surface height in board-root space. */
 const PAPER_Z = 0.002;
-/** Pen contact with the board, in meters above the paper (negative: through it). */
+/**
+ * Pen contact with the board, in meters above the paper (negative: through it). A pen
+ * touches down on the paper and stops drawing once lifted past `prefs.liftMm`.
+ */
 const CONTACT = {
-  /** Touch down at this height and lift above `up`: the gap swallows tracking jitter. */
-  down: 0.004,
-  up: 0.018,
+  down: 0,
   /** The board has no physical surface, so keep drawing while the tip sinks this far behind it. */
   behind: 0.08,
   /** Penetration that reaches full pressure. */
@@ -52,6 +55,9 @@ const CONTACT = {
   /** Show the approach marker from this height. */
   hover: 0.07,
 };
+
+/** Lift height that ends a stroke (the palette's 離れ setting). */
+const liftHeight = (): number => prefs.liftMm / 1000;
 
 function penPressure(height: number): number {
   return 0.35 + 0.65 * Math.min(1, Math.max(0, (CONTACT.down - height) / CONTACT.fullPress));
@@ -89,6 +95,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private pens!: PenRig;
   private grab!: DirectGrab;
   private windows!: Windows;
+  private stock: StockCards | null = null;
   /** What each held pen tip may press: panels and the page strip (the board has its own contact logic). */
   private readonly uiTargets: Record<Side, Object3D[]> = { left: [], right: [] };
   private rig!: Object3D;
@@ -222,7 +229,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.windows.add(spec);
   }
 
-  pasteOnPage(canvas: HTMLCanvasElement, label: string): void {
+  pasteOnPage(canvas: HTMLCanvasElement, label: string, at?: BoardPoint): void {
+    // A drop point picks its page; otherwise the clip lands mid-page on the current one.
+    if (at != null) this.focusPageAt(at);
     const slot = this.currentSlot();
     if (slot < 0) {
       this.toast('貼り付け先のページがありません');
@@ -231,7 +240,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.setTool('select');
     const r = this.board.slotRect(slot);
     const fit = INNER_FRAME.w / PX_PER_M;
-    this.tools.selection.float(canvas, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, label, canvas.width / PX_PER_M > fit ? fit : undefined);
+    const x = at?.x ?? (r.x0 + r.x1) / 2;
+    const y = at?.y ?? (r.y0 + r.y1) / 2;
+    this.tools.selection.float(canvas, x, y, label, canvas.width / PX_PER_M > fit ? fit : undefined);
     this.palette?.refresh();
   }
 
@@ -386,6 +397,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
           this.markDirty();
           this.toast(`ゴミ箱の${n}ページを完全に削除しました`);
         },
+        recallStock: (id) => this.stock?.recall(id),
         pasteClip: (id) => {
           const canvas = this.project.clips.get(id);
           if (canvas != null) this.pasteOnPage(canvas, 'クリップの貼り付け');
@@ -402,6 +414,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
         zoom: (k) => this.zoom(k),
         swap: () => this.swapHands(),
         recenter: () => this.recenter(),
+        resetLayout: () => {
+          this.windows.resetLayout();
+          this.toast('ウィンドウを最初の配置に戻しました');
+        },
       }, c);
     }
   }
@@ -418,16 +434,17 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     if (this.wrist != null) this.uiTargets.right.push(this.wrist.panel);
   }
 
-  /** Grab bars under the panels, the board and the PDF sheet (the diorama adds its monitor). */
+  /** Grab bars under the panels, the board and the PDF sheet (the diorama adds its monitor), and stock cards. */
   private buildWindows(): void {
     this.grab = new DirectGrab(this.world, this.pens);
     this.windows = new Windows(this.world, this.grab, this.cleanupFuncs);
     const rig = this.world.requireSceneEntity('studio-rig');
     for (const [id, root] of [['tool-palette', 'tool-root'], ['manager', 'manager-root'], ['diorama-palette', 'diorama-root']] as const) {
       const panel = this.world.getSceneObject<UIKitMLAsset>(id);
-      if (panel != null) this.windows.add({ object: panel, parent: rig, bottomCenter: (out) => panelBottom(panel, root, out) });
+      if (panel != null) this.windows.add({ id, object: panel, parent: rig, bottomCenter: (out) => panelBottom(panel, root, out) });
     }
-    const below = (object: Object3D, depth: () => number): WindowSpec => ({
+    const below = (id: string, object: Object3D, depth: () => number): WindowSpec => ({
+      id,
       object,
       parent: rig,
       bottomCenter: (out) => {
@@ -435,9 +452,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
         return out.set(0, -depth(), 0).applyMatrix4(object.matrix);
       },
     });
-    this.windows.add(below(this.world.requireSceneObject('board-anchor'), () => WINDOW_H / 2 + 0.015));
+    this.windows.add(below('board', this.world.requireSceneObject('board-anchor'), () => WINDOW_H / 2 + 0.015));
     const refs = this.refs;
-    if (refs != null) this.windows.add(below(this.world.requireSceneObject('pdf-anchor'), () => refs.sheetHalfHeight));
+    if (refs != null) this.windows.add(below('pdf', this.world.requireSceneObject('pdf-anchor'), () => refs.sheetHalfHeight));
+    this.stock = new StockCards(this.world, this, this.grab, this.navigator, rig, this.cleanupFuncs);
   }
 
   private bindDomInput(): void {
@@ -698,6 +716,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.pens.update(delta, this.armed);
     this.grab.update();
     this.windows.update(delta);
+    this.stock?.update(delta);
     const ink = this.project.tools.penColor;
     for (const side of SIDES) {
       const pen = this.pens.pens[side];
@@ -735,7 +754,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
 
   private trackPen(active: ActivePointer, side: Side): void {
     const height = this.penHeight(side, 0.02);
-    if (height == null || height > CONTACT.up || height < -CONTACT.behind) {
+    if (height == null || height > liftHeight() || height < -CONTACT.behind) {
       this.onBoardUp(active.id);
       return;
     }
@@ -749,7 +768,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     let best = Infinity;
     for (const side of SIDES) {
       const height = this.penHeight(side, 0);
-      if (height == null || height > CONTACT.up) this.penLatch[side] = false;
+      if (height == null || height > liftHeight()) this.penLatch[side] = false;
       if (height == null || height > CONTACT.hover || height < -CONTACT.behind) {
         this.board.hideTipMarker(side);
         continue;
@@ -1119,6 +1138,14 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       zoom: Math.round(this.board.zoom * 100) / 100,
       grip: this.grip.active,
       grab: this.grab.debugTargets(),
+      // World centres of buttons emulator checks press with a ray.
+      buttons: Object.fromEntries(
+        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['tool-palette', 'sel-stock']] as const).map(([panel, id]) => {
+          const el = this.world.getSceneObject<UIKitMLAsset>(panel)?.getElementById(id) as unknown as Object3D | null;
+          el?.updateWorldMatrix(true, false);
+          return [id, el != null ? round(new Vector3().setFromMatrixPosition(el.matrixWorld)) : null];
+        }),
+      ),
       history: (this.history as unknown as { past: Array<{ label: string }> }).past.map((h) => h.label),
       pens,
     };

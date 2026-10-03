@@ -245,6 +245,7 @@ export class DioramaSystem extends createSystem({
     monitor.name = 'CameraMonitor';
     this.anchor.add(monitor);
     studioBridge.studio?.addWindow({
+      id: 'camera-monitor',
       object: monitor,
       parent: anchorEntity,
       bottomCenter: (out) => {

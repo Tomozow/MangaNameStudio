@@ -2,6 +2,7 @@
 import { VisibilityState, type UIKitMLAsset, type World } from '@iwsdk/core';
 import { PALETTE, TOOL_NAMES, newId, type Side, type ToolId } from './doc.js';
 import { addClipToStock } from './page-ops.js';
+import { LIFT_RANGE, prefs, savePrefs } from './prefs.js';
 import type { StudioApi } from './studio-ctx.js';
 import type { ToolController } from './tools.js';
 import { applyJapaneseFont, bindButton, setChip, setProps, setText, setVisible } from './ui-kit.js';
@@ -57,11 +58,26 @@ export class PaletteUi {
     bindButton(panel, 'opacity-p0', () => this.patch({ penColor: '#5B9BD5', penOpacity: 0.4 }), c);
     bindButton(panel, 'opacity-p1', () => this.patch(eraser() ? { eraserOpacity: 1 } : { penOpacity: 1 }), c);
     const stabStep = (dir: number) =>
-      this.patch({ stabilizer: Math.round(Math.max(0, Math.min(0.9, s().stabilizer + dir * 0.1)) * 10) / 10 });
+      // Adjusting the strength turns smoothing back on.
+      this.patch({ stabilizer: Math.round(Math.max(0, Math.min(0.9, s().stabilizer + dir * 0.1)) * 10) / 10, stabilizerOn: true });
     bindButton(panel, 'stab-minus', () => stabStep(-1), c);
     bindButton(panel, 'stab-plus', () => stabStep(1), c);
     bindButton(panel, 'opt-pressure', () => this.patch({ pressure: !s().pressure }), c);
     bindButton(panel, 'opt-snap', () => this.patch({ angleSnap: !s().angleSnap }), c);
+    bindButton(panel, 'opt-stroke-filter', () => this.patch({ stabilizerOn: !s().stabilizerOn }), c);
+    // Device settings: how far a lifted pen may rise before the stroke ends, hand smoothing.
+    const device = (change: () => void) => {
+      change();
+      savePrefs();
+      this.refresh();
+    };
+    const liftStep = (dir: number) =>
+      device(() => {
+        prefs.liftMm = Math.min(LIFT_RANGE.max, Math.max(LIFT_RANGE.min, prefs.liftMm + dir * LIFT_RANGE.step));
+      });
+    bindButton(panel, 'lift-minus', () => liftStep(-1), c);
+    bindButton(panel, 'lift-plus', () => liftStep(1), c);
+    bindButton(panel, 'opt-pen-filter', () => device(() => (prefs.penFilter = !prefs.penFilter)), c);
 
     const textSize = (dir: number) => {
       const cur = this.tools.currentText()?.text.fontSize ?? s().textSize;
@@ -161,7 +177,10 @@ export class PaletteUi {
     setText(panel, 'opacity-label', `濃さ ${Math.round(opacity * 100)}%`);
     setChip(panel, 'opacity-p0', !eraser && t.penOpacity < 0.5 && t.penColor === '#5B9BD5', 'tertiary');
     setChip(panel, 'opacity-p1', opacity === 1, 'tertiary');
-    setText(panel, 'stab-label', `補正 ${Math.round(t.stabilizer * 100)}%`);
+    setText(panel, 'stab-label', t.stabilizerOn ? `補正 ${Math.round(t.stabilizer * 100)}%` : '補正 切');
+    setChip(panel, 'opt-stroke-filter', t.stabilizerOn);
+    setChip(panel, 'opt-pen-filter', prefs.penFilter);
+    setText(panel, 'lift-label', `離れ ${prefs.liftMm.toFixed(1)}mm`);
     setChip(panel, 'opt-pressure', t.pressure);
     setChip(panel, 'opt-snap', t.angleSnap);
     const sel = this.tools.currentText()?.text;

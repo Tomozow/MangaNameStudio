@@ -224,8 +224,10 @@
       <div id="stock-slot-7" class="slot"><img id="stock-img-7" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-7" class="caption">-</span></div>
     </div>
     <span id="stock-hint" class="caption">ページやクリップを選んで操作します</span>
+    <span class="caption">ストックは空間のカードにもなります。カードを持ってボードやページ列で離すと戻し、切り抜きはページの上で離すと貼れます</span>
     <div class="row">
       <Button id="stock-restore" class="chip" variant="primary"><ArchiveRestore class="ico-sm" /><ButtonLabel id="stock-restore-label" class="chip-label">ネームに戻す</ButtonLabel></Button>
+      <Button id="stock-recall" class="chip" variant="secondary"><Hand class="ico-sm" /><ButtonLabel class="chip-label">手元に戻す</ButtonLabel></Button>
       <Button id="stock-delete" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel id="stock-delete-label" class="chip-label">削除</ButtonLabel></Button>
     </div>
   </div>

@@ -81,6 +81,8 @@ export interface ToolSettings {
   eraserOpacity: number;
   pressure: boolean;
   stabilizer: number;
+  /** One Euro stroke smoothing on/off; `stabilizer` keeps its strength while off. */
+  stabilizerOn: boolean;
   angleSnap: boolean;
   textSize: number;
   textColor: string;
@@ -95,6 +97,7 @@ export const DEFAULT_TOOLS: ToolSettings = {
   eraserOpacity: 1,
   pressure: true,
   stabilizer: 0.5,
+  stabilizerOn: true,
   angleSnap: true,
   textSize: 36,
   textColor: '#1A1A1A',
@@ -137,6 +140,8 @@ export interface DocJson {
   diorama: DioramaSave[];
   /** Saved diorama layouts (camera + pieces) keyed by page id: one "cut" per page. */
   cuts?: Record<string, DioramaSave[]>;
+  /** Where each stock card sits: [x, y, z, qx, qy, qz, qw] in the studio rig's space, by item id. */
+  stockPlaces?: Record<string, number[]>;
   updatedAt: number;
 }
 

@@ -18,7 +18,8 @@ import {
   type World,
 } from '@iwsdk/core';
 import { HandleStore, type HandleOptions } from '@pmndrs/handle';
-import type { DirectGrab, GrabLevel } from './direct-grab.js';
+import type { DirectGrab, GrabLevel, GrabTarget } from './direct-grab.js';
+import { prefs, savePrefs } from './prefs.js';
 
 /** Bar placement and turn rate (meters, 1/s). */
 const BAR = {
@@ -30,8 +31,24 @@ const BAR = {
 };
 
 const UP = new Vector3(0, 1, 0);
+const faceM = new Matrix4();
+const faceQ = new Quaternion();
+const faceP = new Quaternion();
+const faceV = new Vector3();
+
+/** Turn `object` (front +Z) a step `k` (0..1) toward `head` (world), upright. */
+export function faceToward(object: Object3D, head: Vector3, k: number): void {
+  const parent = object.parent;
+  if (parent == null) return;
+  object.updateWorldMatrix(true, false);
+  faceM.lookAt(head, faceV.setFromMatrixPosition(object.matrixWorld), UP);
+  parent.getWorldQuaternion(faceP).invert();
+  object.quaternion.slerp(faceQ.setFromRotationMatrix(faceM).premultiply(faceP), k);
+}
 
 export interface WindowSpec {
+  /** Key for the saved layout. */
+  readonly id: string;
   /** The object that moves (a panel, or an anchor carrying a board or sheet). */
   readonly object: Object3D;
   /** Entity of `object`'s parent; the bar is created there as its sibling. */
@@ -51,6 +68,9 @@ interface Item {
   carried: boolean;
   dragged: boolean;
   grabLevel: GrabLevel;
+  /** Authored transform ([x, y, z, qx, qy, qz, qw] in the parent's space) for a layout reset. */
+  readonly home: number[];
+  grabTarget: GrabTarget | null;
 }
 
 /** Bottom-centre of a UIKitML panel (root element `rootId`) in the panel parent's space. */
@@ -66,9 +86,6 @@ export class Windows {
   private readonly items: Item[] = [];
   private readonly pillGeometry = new CapsuleGeometry(0.0055, 0.07, 4, 12).rotateZ(Math.PI / 2).scale(1, 1, 0.5);
   private readonly hitGeometry = new BoxGeometry(0.15, 0.04, 0.02);
-  private readonly m = new Matrix4();
-  private readonly q = new Quaternion();
-  private readonly pq = new Quaternion();
   private readonly v = new Vector3();
   private readonly head = new Vector3();
 
@@ -101,6 +118,7 @@ export class Windows {
         if (item.dragged !== !state.last) {
           item.dragged = !state.last;
           this.paint(item);
+          if (state.last) this.save(item);
         }
       },
     };
@@ -112,8 +130,12 @@ export class Windows {
       carried: false,
       dragged: false,
       grabLevel: 0,
+      home: [...spec.object.position.toArray(), ...spec.object.quaternion.toArray()],
+      grabTarget: null,
       handle: new HandleStore<void>(spec.object, () => options),
     };
+    const saved = prefs.windows[spec.id];
+    if (Array.isArray(saved) && saved.length === 7 && saved.every(Number.isFinite)) this.apply(spec.object, saved);
     const target = bar as unknown as {
       addEventListener(type: string, fn: (e: { pointerId: number }) => void): void;
       removeEventListener(type: string, fn: (e: { pointerId: number }) => void): void;
@@ -132,7 +154,7 @@ export class Windows {
     const bounds = new Box3();
     this.hitGeometry.computeBoundingBox();
     bounds.copy(this.hitGeometry.boundingBox!);
-    const unregister = this.grab.add({
+    const grabTarget: GrabTarget = {
       reach: bar,
       bounds,
       // The hand carries the bar: the window turning to face the viewer pivots about it.
@@ -153,8 +175,11 @@ export class Windows {
       },
       end: () => {
         item.carried = false;
+        this.save(item);
       },
-    });
+    };
+    item.grabTarget = grabTarget;
+    const unregister = this.grab.add(grabTarget);
     this.cleanup.push(() => {
       target.removeEventListener('pointerenter', enter);
       target.removeEventListener('pointerleave', leave);
@@ -166,6 +191,29 @@ export class Windows {
     this.place(item);
   }
 
+  /** Put every window back where the scene authored it and forget the saved layout. */
+  resetLayout(): void {
+    for (const item of this.items) {
+      item.handle.cancel();
+      if (item.grabTarget != null) this.grab.drop(item.grabTarget);
+      this.apply(item.spec.object, item.home);
+      this.place(item);
+    }
+    prefs.windows = {};
+    savePrefs();
+  }
+
+  private apply(object: Object3D, t: readonly number[]): void {
+    object.position.fromArray(t);
+    object.quaternion.fromArray(t, 3);
+  }
+
+  private save(item: Item): void {
+    const { object, id } = item.spec;
+    prefs.windows[id] = [...object.position.toArray(), ...object.quaternion.toArray()];
+    savePrefs();
+  }
+
   /** Move dragged windows, turn moving ones toward the viewer and keep bars under their windows. */
   update(delta: number): void {
     const now = performance.now();
@@ -173,21 +221,9 @@ export class Windows {
     this.world.camera.getWorldPosition(this.head);
     for (const item of this.items) {
       item.handle.update(now);
-      if (item.carried || item.dragged) this.face(item.spec.object, k);
+      if (item.carried || item.dragged) faceToward(item.spec.object, this.head, k);
       this.place(item);
     }
-  }
-
-  /** Turn `object` (front +Z) toward the viewer's head, upright. */
-  private face(object: Object3D, k: number): void {
-    const parent = object.parent;
-    if (parent == null) return;
-    object.updateWorldMatrix(true, false);
-    this.v.setFromMatrixPosition(object.matrixWorld);
-    this.m.lookAt(this.head, this.v, UP);
-    parent.getWorldQuaternion(this.pq).invert();
-    this.q.setFromRotationMatrix(this.m).premultiply(this.pq);
-    object.quaternion.slerp(this.q, k);
   }
 
   private place(item: Item): void {

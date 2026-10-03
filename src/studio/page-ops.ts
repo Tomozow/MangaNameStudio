@@ -130,14 +130,14 @@ export function removeCurrent(ctx: StudioCtx, target: 'stock' | 'trash'): void {
   ctx.toast(target === 'stock' ? 'ページをネームストックへ移しました' : 'ページをゴミ箱へ移しました (ストックタブから戻せます)');
 }
 
-/** Put a stocked/trashed page back after the current page. */
-export function restorePage(ctx: StudioCtx, pageId: string, from: 'stock' | 'trash'): void {
+/** Put a stocked/trashed page back at reading-order `index` (default: after the current page). */
+export function restorePage(ctx: StudioCtx, pageId: string, from: 'stock' | 'trash', index?: number): void {
   const project = ctx.project;
   structChange(ctx, 'ページを戻す', () => {
     if (from === 'stock') project.stock = project.stock.filter((s) => !(s.kind === 'page' && s.id === pageId));
     else project.trash = project.trash.filter((t) => t !== pageId);
-    const i = project.currentPage == null ? project.order.length - 1 : project.order.indexOf(project.currentPage);
-    project.order.splice(i + 1, 0, pageId);
+    const after = project.currentPage == null ? project.order.length - 1 : project.order.indexOf(project.currentPage);
+    project.order.splice(Math.max(0, Math.min(project.order.length, index ?? after + 1)), 0, pageId);
     project.currentPage = pageId;
   });
 }

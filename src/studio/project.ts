@@ -156,6 +156,8 @@ export class Project {
   pdfPage = 1;
   diorama: DioramaSave[] = [];
   cuts: Record<string, DioramaSave[]> = {};
+  /** Stock card places (not part of undo: moving a card is not an edit of the name). */
+  stockPlaces: Record<string, number[]> = {};
   updatedAt = Date.now();
   /** Set when the project was deleted; autosave must never write it back. */
   deleted = false;
@@ -204,6 +206,7 @@ export class Project {
     project.pdfPage = json.pdfPage ?? 1;
     project.diorama = (json.diorama ?? []).map((d) => ({ ...d }));
     project.cuts = Object.fromEntries(Object.entries(json.cuts ?? {}).map(([k, v]) => [k, v.map((d) => ({ ...d }))]));
+    project.stockPlaces = Object.fromEntries(Object.entries(json.stockPlaces ?? {}).map(([k, v]) => [k, [...v]]));
     project.updatedAt = json.updatedAt;
     const pageIds = new Set([
       ...json.order,
@@ -263,6 +266,10 @@ export class Project {
       pdfPage: this.pdfPage,
       diorama: this.diorama.map((d) => ({ ...d })),
       cuts: Object.fromEntries(Object.entries(this.cuts).map(([k, v]) => [k, v.map((d) => ({ ...d }))])),
+      // Only items still in the stock keep a place.
+      stockPlaces: Object.fromEntries(
+        this.stock.filter((s) => this.stockPlaces[s.id] != null).map((s) => [s.id, [...this.stockPlaces[s.id]!]]),
+      ),
       updatedAt: this.updatedAt,
     };
   }

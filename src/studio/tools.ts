@@ -253,7 +253,7 @@ export class ToolController {
         // Event bursts (high-rate pens, coalesced input) must not stall the filter.
         const dt = Math.max(1 / 120, (now - s.t) / 1000);
         s.t = now;
-        const stab = this.settings.stabilizer;
+        const stab = this.settings.stabilizerOn ? this.settings.stabilizer : 0;
         if (stab <= 0.01) {
           s.sx = this.raster.x;
           s.sy = this.raster.y;

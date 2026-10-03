@@ -4,6 +4,7 @@
 import { Matrix4, Quaternion, Vector3, type Object3D, type World } from '@iwsdk/core';
 import { createTouchPointer, type Pointer } from '@pmndrs/pointer-events';
 import { SIDES, type Side } from './doc.js';
+import { prefs } from './prefs.js';
 import { OneEuro } from './tools.js';
 
 /** Calibration knobs (meters / Hz). Real hands and controllers differ: tune on device. */
@@ -220,7 +221,8 @@ export class PenRig {
       .multiplyScalar(0.5);
     const f = pen.filters;
     const step = Math.max(1 / 120, dt);
-    if (pen.fresh) {
+    // Smoothing can be switched off in the palette (raw tracking, no lag).
+    if (pen.fresh || !prefs.penFilter) {
       for (let i = 0; i < 3; i++) {
         f[i]!.reset(g.getComponent(i));
         f[i + 3]!.reset(web.getComponent(i));

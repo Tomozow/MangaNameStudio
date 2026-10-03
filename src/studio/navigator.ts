@@ -257,6 +257,28 @@ export class Navigator {
     else this.scroll(hit.dir);
   }
 
+  /**
+   * Insert index for a stock card held at `world` over the strip, showing the insert
+   * marker there; null (and no marker) when the card is not over the strip.
+   */
+  dropIndex(world: Vector3): number | null {
+    const p = this.toLocal(world);
+    const over = Math.abs(p.x) <= STRIP_W / 2 && Math.abs(p.y) <= STRIP_H / 2 + 0.03 && p.z > -0.05 && p.z < 0.12;
+    if (!over || this.project == null) {
+      this.hideDrop();
+      return null;
+    }
+    const index = this.insertIndex(p.x);
+    this.marker.position.set(this.boundaryX(index), TILE_Y, 0.005);
+    this.marker.visible = true;
+    return index;
+  }
+
+  hideDrop(): void {
+    // A reorder drag owns the marker while it runs.
+    if (this.press == null) this.marker.visible = false;
+  }
+
   scroll(dir: -1 | 1): void {
     if (this.project == null) return;
     const total = readingSpreads(this.project.order).length + 1;

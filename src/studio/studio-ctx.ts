@@ -3,6 +3,7 @@ import type { GrabTarget } from './direct-grab.js';
 import type { History } from './history.js';
 import type { PageRt, Project } from './project.js';
 import type { TextInput } from './text-input.js';
+import type { BoardPoint } from './tools.js';
 import type { WindowSpec } from './windows.js';
 
 /** What tools and panels need from the running studio. */
@@ -22,8 +23,8 @@ export interface StudioCtx {
 
 /** Surface other systems (diorama, references) use to reach the studio. */
 export interface StudioApi extends StudioCtx {
-  /** Float an image over the current page with the selection tool active. */
-  pasteOnPage(canvas: HTMLCanvasElement, label: string): void;
+  /** Float an image over the current page (or the page at board point `at`) with the selection tool active. */
+  pasteOnPage(canvas: HTMLCanvasElement, label: string, at?: BoardPoint): void;
   /** Called with the project whenever a project is opened or created. */
   onProjectOpened(listener: (project: Project) => void): () => void;
   /** Let either hand pick `target` up directly; returns its unregister function. */

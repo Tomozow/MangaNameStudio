@@ -12,7 +12,7 @@ import {
 } from '@iwsdk/core';
 import { TOOL_NAMES, type Side, type ToolId } from './doc.js';
 import { handJointMatrix } from './pens.js';
-import { bindButton, setText } from './ui-kit.js';
+import { bindButton, setProps, setText } from './ui-kit.js';
 
 /** Placement knobs (meters, 1/s). */
 export const WRIST_TUNING = {
@@ -43,7 +43,13 @@ export interface WristActions {
   zoom(factor: number): void;
   swap(): void;
   recenter(): void;
+  /** Put every moved window back where it started. */
+  resetLayout(): void;
 }
+
+/** A second press within this time confirms the layout reset (ms). */
+const CONFIRM_MS = 3000;
+const LAYOUT_LABEL = 'ウィンドウ配置を戻す';
 
 export class WristMenu {
   private shown = false;
@@ -53,6 +59,8 @@ export class WristMenu {
   private settled = false;
   private shownLeft: ToolId | null = null;
   private shownRight: ToolId | null = null;
+  /** When the layout reset was first pressed (0: not armed). */
+  private resetArmed = 0;
   private readonly m = new Matrix4();
   private readonly look = new Matrix4();
   private readonly q = new Quaternion();
@@ -78,6 +86,16 @@ export class WristMenu {
     bindButton(panel, 'wrist-zoom-in', () => actions.zoom(1.25), cleanup);
     bindButton(panel, 'wrist-swap', () => actions.swap(), cleanup);
     bindButton(panel, 'wrist-recenter', () => actions.recenter(), cleanup);
+    bindButton(panel, 'wrist-layout', () => {
+      if (this.resetArmed > 0 && performance.now() - this.resetArmed < CONFIRM_MS) {
+        this.disarm();
+        actions.resetLayout();
+        return;
+      }
+      this.resetArmed = performance.now();
+      setText(panel, 'wrist-layout-label', 'もう一度押して確定');
+      setProps(panel, 'wrist-layout', { variant: 'negative' });
+    }, cleanup);
     panel.visible = false;
   }
 
@@ -85,7 +103,14 @@ export class WristMenu {
     return this.shown;
   }
 
+  private disarm(): void {
+    this.resetArmed = 0;
+    setText(this.panel, 'wrist-layout-label', LAYOUT_LABEL);
+    setProps(this.panel, 'wrist-layout', { variant: 'secondary' });
+  }
+
   update(delta: number): void {
+    if (this.resetArmed > 0 && performance.now() - this.resetArmed >= CONFIRM_MS) this.disarm();
     const xr = this.world.input.xr;
     let show = false;
     this.world.camera.getWorldPosition(this.head);

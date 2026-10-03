@@ -86,6 +86,11 @@ export class DirectGrab {
     };
   }
 
+  /** Make whichever hand holds `target` let go of it. */
+  drop(target: GrabTarget): void {
+    for (const side of SIDES) if (this.holds[side].target === target) this.release(side);
+  }
+
   holding(side: Side): boolean {
     return this.holds[side].target != null;
   }

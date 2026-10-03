@@ -30,6 +30,8 @@ export interface ManagerActions {
   importBackup(): void;
   emptyTrash(): void;
   pasteClip(id: string): void;
+  /** Bring the stock item's card in front of the user. */
+  recallStock(id: string): void;
 }
 
 export class ManagerUi {
@@ -84,6 +86,10 @@ export class ManagerUi {
     }
     bindButton(panel, 'stock-restore', () => this.restoreStock(), c);
     bindButton(panel, 'stock-delete', () => this.deleteStock(), c);
+    bindButton(panel, 'stock-recall', () => {
+      if (this.stockMode === 'stock' && this.stockSel != null) actions.recallStock(this.stockSel);
+      else this.studio.toast('ストックの項目を選んでください');
+    }, c);
 
     bindButton(panel, 'file-rename', () => actions.renameProject(), c);
     for (const n of [8, 16, 24, 32]) bindButton(panel, `file-new-${n}`, () => actions.newProject(n), c);
@@ -167,6 +173,7 @@ export class ManagerUi {
     this.stockSel = null;
     setChip(this.panel, 'stock-mode-stock', mode === 'stock');
     setChip(this.panel, 'stock-mode-trash', mode === 'trash');
+    setVisible(this.panel, 'stock-recall', mode === 'stock');
     this.refreshLabels();
     setText(this.panel, 'stock-restore-label', 'ネームに戻す');
     this.renderStock();

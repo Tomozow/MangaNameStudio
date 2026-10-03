@@ -256,6 +256,16 @@
   </div>
 
   <div class="divider" />
+  <div class="row">
+    <span id="lift-label" class="value">離れ 2.5mm</span>
+    <Button id="lift-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+    <Button id="lift-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+    <Button id="opt-pen-filter" class="chip" variant="primary"><ButtonLabel class="chip-label">位置補正</ButtonLabel></Button>
+    <Button id="opt-stroke-filter" class="chip" variant="primary"><ButtonLabel class="chip-label">線補正</ButtonLabel></Button>
+  </div>
+  <span class="caption">離れ: 浮かすと描画をやめる高さ / 位置補正: 手のペンの揺れ / 線補正: 線の手ブレ</span>
+
+  <div class="divider" />
   <div class="spread">
     <div class="row">
       <Button id="undo-button" class="chip" variant="secondary"><Undo2 class="ico-sm" /><ButtonLabel class="chip-label">取り消し</ButtonLabel></Button>
