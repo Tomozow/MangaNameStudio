@@ -253,7 +253,7 @@ export class ManagerUi {
           texture = this.clipTextures.get(entry.id);
           if (texture == null) {
             // Texts cut with the ink show on the thumbnail (a text-only clip has no ink).
-            texture = canvasTexture(composeClip(canvas, entry.kind === 'clip' ? entry.texts : undefined));
+            texture = canvasTexture(composeClip(canvas, entry.texts));
             this.clipTextures.set(entry.id, texture);
           }
         }

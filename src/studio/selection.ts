@@ -462,11 +462,12 @@ export class Selection {
   toStock(): boolean {
     const clip = this.clip;
     if (clip == null) return false;
-    if (clip.stockId != null) {
+    const project = this.ctx.project;
+    // Unless it was deleted from the stock meanwhile: then it is stocked anew below.
+    if (clip.stockId != null && project.stock.some((s) => s.kind === 'clip' && s.id === clip.stockId)) {
       this.cancel();
       return true;
     }
-    const project = this.ctx.project;
     const id = newId('clip');
     const ink = makeCanvas(clip.canvas.width, clip.canvas.height);
     ctx2d(ink).drawImage(clip.canvas, 0, 0);

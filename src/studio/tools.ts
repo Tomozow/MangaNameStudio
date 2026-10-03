@@ -723,6 +723,8 @@ export class ToolController {
 
   /** Move the selected text into the stock as a clip of its own; it leaves the page. */
   stockText(): boolean {
+    // Finish typing first: a later commit of this edit would put the text back on undo.
+    this.ctx.textInput.commit();
     const cur = this.currentText();
     if (cur == null || cur.text.content.trim().length === 0) return false;
     const { page, text } = cur;
