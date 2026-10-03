@@ -457,6 +457,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private buildWindows(): void {
     this.grab = new DirectGrab(this.world, this.pens);
     this.windows = new Windows(this.world, this.grab, (id) => this.sideOfPointer(id), this.cleanupFuncs);
+    this.windows.docks.menuShown = () => this.wrist?.visible ?? false;
     const rig = this.world.requireSceneEntity('studio-rig');
     this.hud = new ToastHud(this.world, rig, this.cleanupFuncs);
     // Docked sizes put each panel about 15 cm wide on a wrist; the belt sits further from the eyes.

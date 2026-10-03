@@ -57,6 +57,8 @@ export class Docks {
   };
   /** In an immersive session: docks only apply there. */
   immersive = false;
+  /** Whether the quick menu shows (it reads the same left stick click earlier in the frame). */
+  menuShown: (() => boolean) | null = null;
   readonly head = new Vector3();
   /** Body frame (world): the smoothed head position, turned with the body. */
   private readonly body = new Matrix4();
@@ -108,7 +110,11 @@ export class Docks {
         .addScaledVector(back, DOCK_TUNING.offBack)
         .addScaledVector(this.right, inward * DOCK_TUNING.inward);
     } else if (xr.isPrimary('controller', side)) {
-      if (xr.gamepads[side]?.getButtonDown(InputComponent.Thumbstick)) w.toggled = !w.toggled;
+      if (xr.gamepads[side]?.getButtonDown(InputComponent.Thumbstick)) {
+        // The left click shows or hides the quick menu too: keep the two in step even after
+        // a drop showed this wrist's windows on their own.
+        w.toggled = side === 'left' && this.menuShown != null ? this.menuShown() : !w.toggled;
+      }
       const grip = this.world.player.gripSpaces[side];
       grip.updateWorldMatrix(true, false);
       w.tracked = true;
