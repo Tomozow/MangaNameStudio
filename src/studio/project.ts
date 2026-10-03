@@ -24,6 +24,20 @@ export function makeCanvas(w: number, h: number): HTMLCanvasElement {
   return canvas;
 }
 
+/** Copy of a stock entry; a clip's texts are copied too so snapshots never share them. */
+const cloneStockItem = (s: StockItem): StockItem =>
+  s.kind === 'clip' && s.texts != null ? { ...s, texts: s.texts.map((t) => ({ ...t })) } : { ...s };
+
+/** How a clip looks: its ink with its texts drawn on top (the ink canvas itself when it has none). */
+export function composeClip(ink: HTMLCanvasElement, texts: readonly TextBox[] | undefined): HTMLCanvasElement {
+  if (texts == null || texts.length === 0) return ink;
+  const out = makeCanvas(ink.width, ink.height);
+  const c = ctx2d(out);
+  c.drawImage(ink, 0, 0);
+  drawTexts(c, texts, 1);
+  return out;
+}
+
 export function ctx2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d');
   if (ctx == null) throw new Error('2D canvas unavailable');
@@ -196,7 +210,7 @@ export class Project {
     project.id = json.id;
     project.name = json.name;
     project.order = [...json.order];
-    project.stock = json.stock.map((s) => ({ ...s }));
+    project.stock = json.stock.map(cloneStockItem);
     project.trash = [...json.trash];
     project.currentPage = json.currentPage;
     project.tools = { ...DEFAULT_TOOLS, ...json.tools };
@@ -255,7 +269,7 @@ export class Project {
       id: this.id,
       name: this.name,
       order: [...this.order],
-      stock: this.stock.map((s) => ({ ...s })),
+      stock: this.stock.map(cloneStockItem),
       trash: [...this.trash],
       texts,
       currentPage: this.currentPage,
@@ -287,7 +301,7 @@ export class Project {
     for (const [id, page] of this.pages) texts[id] = page.texts;
     return {
       order: [...this.order],
-      stock: this.stock.map((s) => ({ ...s })),
+      stock: this.stock.map(cloneStockItem),
       trash: [...this.trash],
       texts: cloneTexts(texts),
       currentPage: this.currentPage,
@@ -296,7 +310,7 @@ export class Project {
 
   restore(snap: StructSnapshot): void {
     this.order = [...snap.order];
-    this.stock = snap.stock.map((s) => ({ ...s }));
+    this.stock = snap.stock.map(cloneStockItem);
     this.trash = [...snap.trash];
     const texts = cloneTexts(snap.texts);
     for (const [id, page] of this.pages) {

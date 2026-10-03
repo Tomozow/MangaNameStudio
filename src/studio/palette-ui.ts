@@ -1,7 +1,6 @@
 // Tool palette (left panel): tools, colours, sizes, context sections, undo/redo.
 import { VisibilityState, type UIKitMLAsset, type World } from '@iwsdk/core';
-import { PALETTE, TOOL_NAMES, newId, type Side, type ToolId } from './doc.js';
-import { addClipToStock } from './page-ops.js';
+import { PALETTE, TOOL_NAMES, type Side, type ToolId } from './doc.js';
 import { LIFT_RANGE, prefs, savePrefs } from './prefs.js';
 import type { StudioApi } from './studio-ctx.js';
 import type { ToolController } from './tools.js';
@@ -101,6 +100,10 @@ export class PaletteUi {
     }
     bindButton(panel, 'text-edit', () => this.tools.editText(), c);
     bindButton(panel, 'text-delete', () => this.tools.deleteText(), c);
+    bindButton(panel, 'text-stock', () => {
+      if (this.tools.stockText()) this.studio.toast('テキストをネームストックに移しました');
+      else this.studio.toast('文字の入ったテキストを選んでください');
+    }, c);
 
     const sel = this.tools.selection;
     bindButton(panel, 'sel-commit', () => sel.commit(), c);
@@ -113,13 +116,12 @@ export class PaletteUi {
     bindButton(panel, 'sel-smaller', () => sel.scaleBy(1 / 1.15), c);
     bindButton(panel, 'sel-bigger', () => sel.scaleBy(1.15), c);
     bindButton(panel, 'sel-stock', () => {
-      const canvas = sel.snapshotCanvas();
-      if (canvas == null) {
+      if (!sel.toStock()) {
         this.studio.toast('先に範囲を選択してください');
         return;
       }
-      addClipToStock(this.studio, canvas, newId('clip'));
-      this.studio.toast('選択範囲をネームストックに保存しました');
+      this.studio.toast('選択範囲をネームストックに移しました (ページからは消えます)');
+      this.refresh();
     }, c);
 
     bindButton(panel, 'undo-button', () => actions.undo(), c);

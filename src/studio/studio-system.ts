@@ -17,7 +17,7 @@ import { Autosave } from './autosave.js';
 import { BoardView, WINDOW_H, WINDOW_W } from './board.js';
 import { DioramaSystem } from './diorama.js';
 import { DirectGrab, type GrabTarget } from './direct-grab.js';
-import { INNER_FRAME, PX_PER_M, SIDES, TOOL_NAMES, readingSpreads, spreadIndexOf, type Side, type ToolId } from './doc.js';
+import { INNER_FRAME, PX_PER_M, SIDES, TOOL_NAMES, readingSpreads, spreadIndexOf, type Side, type TextBox, type ToolId } from './doc.js';
 import * as exporter from './export.js';
 import { History } from './history.js';
 import { ManagerUi } from './manager-ui.js';
@@ -116,6 +116,8 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private readonly armed: Record<Side, boolean> = { left: false, right: true };
   /** A pen that touched down must lift before it can touch down again. */
   private readonly penLatch: Record<Side, boolean> = { left: false, right: false };
+  /** Each hand carried something last frame. */
+  private readonly carried: Record<Side, boolean> = { left: false, right: false };
   private penHovering = false;
   private readonly openListeners: Array<(p: Project) => void> = [];
   private readonly p: BoardPoint = { x: 0, y: 0 };
@@ -229,7 +231,12 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.windows.add(spec);
   }
 
-  pasteOnPage(canvas: HTMLCanvasElement, label: string, at?: BoardPoint): void {
+  pasteOnPage(
+    canvas: HTMLCanvasElement,
+    label: string,
+    at?: BoardPoint,
+    from?: { texts?: readonly TextBox[]; stockId?: string },
+  ): void {
     // A drop point picks its page; otherwise the clip lands mid-page on the current one.
     if (at != null) this.focusPageAt(at);
     const slot = this.currentSlot();
@@ -242,7 +249,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     const fit = INNER_FRAME.w / PX_PER_M;
     const x = at?.x ?? (r.x0 + r.x1) / 2;
     const y = at?.y ?? (r.y0 + r.y1) / 2;
-    this.tools.selection.float(canvas, x, y, label, canvas.width / PX_PER_M > fit ? fit : undefined);
+    this.tools.selection.float(canvas, x, y, label, canvas.width / PX_PER_M > fit ? fit : undefined, from);
     this.palette?.refresh();
   }
 
@@ -400,7 +407,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
         recallStock: (id) => this.stock?.recall(id),
         pasteClip: (id) => {
           const canvas = this.project.clips.get(id);
-          if (canvas != null) this.pasteOnPage(canvas, 'クリップの貼り付け');
+          const item = this.project.stock.find((s) => s.kind === 'clip' && s.id === id);
+          // Placing it takes it out of the stock (cancelling the paste leaves it there).
+          if (canvas != null && item?.kind === 'clip') this.pasteOnPage(canvas, 'クリップの貼り付け', undefined, { texts: item.texts, stockId: id });
         },
       }, c);
       this.refs = new References(this.world, this, this.tools, managerPanel, c);
@@ -455,7 +464,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.windows.add(below('board', this.world.requireSceneObject('board-anchor'), () => WINDOW_H / 2 + 0.015));
     const refs = this.refs;
     if (refs != null) this.windows.add(below('pdf', this.world.requireSceneObject('pdf-anchor'), () => refs.sheetHalfHeight));
-    this.stock = new StockCards(this.world, this, this.grab, this.navigator, rig, this.cleanupFuncs);
+    this.stock = new StockCards(this.world, this, this.grab, this.navigator, rig, this.cleanupFuncs, (id) => this.tools.selection.clip?.stockId === id);
   }
 
   private bindDomInput(): void {
@@ -726,6 +735,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
         pen.armed = false;
         pen.model.visible = false;
       }
+      // Letting go right at the board must not draw: the pen has to lift off it first.
+      if (this.carried[side] && !carrying) this.penLatch[side] = true;
+      this.carried[side] = carrying;
       if (pen.model.visible) setToolLook(pen.model, hands[side], ink, pen.held);
       const pointers = this.input.xr.multiPointers[side];
       // A pen grip reads as a pinch, so a hand holding a pen never fires its ray.
@@ -1138,9 +1150,13 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       zoom: Math.round(this.board.zoom * 100) / 100,
       grip: this.grip.active,
       grab: this.grab.debugTargets(),
+      // What is where: texts on the shown pages, stock entries (clips with their text count).
+      shownTexts: this.board.slots.map((slot) => slot.page?.texts.map((t) => t.content) ?? null),
+      stock: this.project.stock.map((s) => (s.kind === 'clip' ? `clip:${s.texts?.length ?? 0}` : 'page')),
+      floating: this.tools.selection.clip != null ? { texts: this.tools.selection.clip.texts.length, stockId: this.tools.selection.clip.stockId } : null,
       // World centres of buttons emulator checks press with a ray.
       buttons: Object.fromEntries(
-        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['tool-palette', 'sel-stock']] as const).map(([panel, id]) => {
+        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['tool-palette', 'sel-stock'], ['tool-palette', 'text-stock']] as const).map(([panel, id]) => {
           const el = this.world.getSceneObject<UIKitMLAsset>(panel)?.getElementById(id) as unknown as Object3D | null;
           el?.updateWorldMatrix(true, false);
           return [id, el != null ? round(new Vector3().setFromMatrixPosition(el.matrixWorld)) : null];

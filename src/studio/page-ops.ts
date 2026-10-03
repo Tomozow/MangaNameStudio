@@ -156,12 +156,6 @@ export function removeStockClip(ctx: StudioCtx, clipId: string): void {
   });
 }
 
-export function addClipToStock(ctx: StudioCtx, canvas: HTMLCanvasElement, id: string): void {
-  ctx.project.clips.set(id, canvas);
-  structChange(ctx, 'クリップをストックへ', () => {
-    ctx.project.stock.push({ kind: 'clip', id });
-  });
-}
 
 export function clearCurrentInk(ctx: StudioCtx): void {
   const page: PageRt | undefined = ctx.project.page(ctx.project.currentPage);

@@ -1,8 +1,9 @@
 // Name stock as cards in space. Every stocked page or clip is a card that either hand
 // can carry (squeeze / pinch) or a ray can drag. Let go of a page card over the board
 // or the page strip to put the page back into the name there; let go of a clip card
-// over a page to paste it at that spot. Anywhere else the card stays where it was put,
-// and its place is saved with the project.
+// over a page to paste it there: while the pasted clip floats its card is hidden, and
+// placing the clip takes it out of the stock (cancelling brings the card back). Anywhere
+// else the card stays where it was put, and its place is saved with the project.
 import {
   Box3,
   BoxGeometry,
@@ -23,7 +24,7 @@ import { RASTER_H, RASTER_W, type StockItem } from './doc.js';
 import { localBounds, type DirectGrab, type GrabLevel, type GrabTarget } from './direct-grab.js';
 import type { Navigator } from './navigator.js';
 import * as ops from './page-ops.js';
-import { canvasTexture, ctx2d, makeCanvas, type Project } from './project.js';
+import { canvasTexture, composeClip, ctx2d, makeCanvas, type Project } from './project.js';
 import type { StudioApi } from './studio-ctx.js';
 import type { BoardPoint } from './tools.js';
 import { faceToward } from './windows.js';
@@ -69,6 +70,8 @@ interface Card {
   drop: Drop;
   /** Let go this frame: act on the drop in the next update, outside the input callbacks. */
   released: boolean;
+  /** Its clip floats on a page right now (pasted, not yet placed): the card is hidden. */
+  away: boolean;
   /** Place when the move started, to send a pasted clip card back. */
   readonly home: number[];
 }
@@ -93,6 +96,8 @@ export class StockCards {
     private readonly navigator: Navigator,
     private readonly rig: Entity,
     cleanup: Array<() => void>,
+    /** Whether stock clip `id` is floating on a page, pasted but not yet placed. */
+    private readonly inTransit: (id: string) => boolean,
   ) {
     cleanup.push(
       studio.onProjectOpened((project) => this.attach(project)),
@@ -125,6 +130,8 @@ export class StockCards {
         // Landing can restore the page and so remove this card (and others): stop here.
         return;
       }
+      const away = card.item.kind === 'clip' && this.inTransit(card.item.id);
+      if (away !== card.away) this.setAway(card, away);
       card.handle.update(now);
       if (!card.carried && !card.dragged) continue;
       faceToward(card.group, this.head, k);
@@ -188,7 +195,10 @@ export class StockCards {
     } else {
       const canvas = project.clips.get(item.id);
       if (canvas == null) return null;
-      map = canvasTexture(canvas);
+      // Texts cut with the ink are drawn on the thumbnail (a text-only clip has no ink at all).
+      const look = composeClip(canvas, item.texts);
+      map = canvasTexture(look);
+      if (look !== canvas) owned.push({ dispose: () => (look.width = 0) });
       owned.push(map);
       const s = CARD.size / Math.max(canvas.width, canvas.height);
       w = canvas.width * s;
@@ -254,6 +264,7 @@ export class StockCards {
       grabLevel: 0,
       drop: null,
       released: false,
+      away: false,
       home: [],
     };
     card.unbind = card.handle.bind(backing);
@@ -282,7 +293,7 @@ export class StockCards {
       reach: group,
       bounds,
       carry: group,
-      available: () => card.handle.getState() == null && !card.released,
+      available: () => card.handle.getState() == null && !card.released && !card.away,
       highlight: (level) => {
         card.grabLevel = level;
         this.paint(card);
@@ -373,15 +384,25 @@ export class StockCards {
     }
     if (drop?.kind === 'paste' && card.item.kind === 'clip') {
       const canvas = project.clips.get(card.item.id);
-      // The clip stays in the stock for reuse: its card goes back where it was.
+      // The card waits, hidden, where it was: placing the clip removes it from the stock,
+      // cancelling the paste shows it there again.
       if (card.home.length === 7) {
         card.group.position.fromArray(card.home);
         card.group.quaternion.fromArray(card.home, 3);
       }
-      if (canvas != null) this.studio.pasteOnPage(canvas, 'クリップの貼り付け', drop.at);
+      if (canvas != null) this.studio.pasteOnPage(canvas, 'クリップの貼り付け', drop.at, { texts: card.item.texts, stockId: card.item.id });
       return;
     }
     this.save(card);
+  }
+
+  /** Hide a card whose clip is out on a page (rays and hands pass through it too). */
+  private setAway(card: Card, away: boolean): void {
+    card.away = away;
+    card.group.visible = !away;
+    card.backing.raycast = away ? () => undefined : Mesh.prototype.raycast;
+    if (away) card.hovers.clear();
+    this.paint(card);
   }
 
   private setDrop(card: Card, drop: Drop): void {

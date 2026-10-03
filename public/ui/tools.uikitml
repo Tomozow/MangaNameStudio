@@ -234,6 +234,9 @@
       <Button id="text-edit" class="chip" variant="secondary"><PencilLine class="ico-sm" /><ButtonLabel class="chip-label">編集</ButtonLabel></Button>
       <Button id="text-delete" class="chip" variant="negative"><Trash2 class="ico-sm" /><ButtonLabel class="chip-label">削除</ButtonLabel></Button>
     </div>
+    <div class="row">
+      <Button id="text-stock" class="chip" variant="secondary"><Archive class="ico-sm" /><ButtonLabel class="chip-label">ストックへ</ButtonLabel></Button>
+    </div>
     <span id="pending-text" class="caption">配置待ち: なし</span>
   </div>
 

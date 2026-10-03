@@ -106,7 +106,8 @@ export const DEFAULT_TOOLS: ToolSettings = {
 
 export type StockItem =
   | { kind: 'page'; id: string }
-  | { kind: 'clip'; id: string };
+  /** A cut of ink (the clip image) and the texts cut with it, in clip-image px. */
+  | { kind: 'clip'; id: string; texts?: TextBox[] };
 
 export interface DioramaSave {
   id: string;

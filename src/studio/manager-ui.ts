@@ -1,8 +1,8 @@
 // Right panel: page operations, view, name stock / trash, files.
 import { type CanvasTexture, type UIKitMLAsset } from '@iwsdk/core';
-import { readingSpreads, spreadIndexOf } from './doc.js';
+import { readingSpreads, spreadIndexOf, type StockItem } from './doc.js';
 import * as ops from './page-ops.js';
-import { canvasTexture } from './project.js';
+import { canvasTexture, composeClip } from './project.js';
 import * as storage from './storage.js';
 import type { StudioApi } from './studio-ctx.js';
 import { applyJapaneseFont, bindButton, setChip, setProps, setText, setVisible } from './ui-kit.js';
@@ -166,7 +166,7 @@ export class ManagerUi {
 
   // ---------- stock ----------
 
-  private entries(): Array<{ kind: 'page' | 'clip'; id: string }> {
+  private entries(): StockItem[] {
     const project = this.studio.project;
     return this.stockMode === 'stock' ? project.stock : project.trash.map((id) => ({ kind: 'page' as const, id }));
   }
@@ -252,7 +252,8 @@ export class ManagerUi {
         if (canvas != null) {
           texture = this.clipTextures.get(entry.id);
           if (texture == null) {
-            texture = canvasTexture(canvas);
+            // Texts cut with the ink show on the thumbnail (a text-only clip has no ink).
+            texture = canvasTexture(composeClip(canvas, entry.kind === 'clip' ? entry.texts : undefined));
             this.clipTextures.set(entry.id, texture);
           }
         }

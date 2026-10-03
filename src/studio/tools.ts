@@ -13,7 +13,8 @@ import {
   type ToolId,
 } from './doc.js';
 import { clampRect, crop, inkEntry, makePatch, textEntry, type Rect } from './patches.js';
-import type { PageRt } from './project.js';
+import { structChange } from './page-ops.js';
+import { makeCanvas, type PageRt } from './project.js';
 import { Selection, borrowBackup, returnBackup } from './selection.js';
 import type { StudioCtx } from './studio-ctx.js';
 import { defaultBoxSize, fitTextBox } from './text-render.js';
@@ -718,6 +719,24 @@ export class ToolController {
     this.ctx.refreshTexts();
     this.ctx.markDirty();
     this.onSelectionChange();
+  }
+
+  /** Move the selected text into the stock as a clip of its own; it leaves the page. */
+  stockText(): boolean {
+    const cur = this.currentText();
+    if (cur == null || cur.text.content.trim().length === 0) return false;
+    const { page, text } = cur;
+    const id = newId('clip');
+    // A clip with no ink: a transparent image the size of the text, carrying the text.
+    this.ctx.project.clips.set(id, makeCanvas(Math.max(1, Math.ceil(text.w)), Math.max(1, Math.ceil(text.h))));
+    this.selectedText = null;
+    structChange(this.ctx, 'テキストをストックへ', () => {
+      page.texts = page.texts.filter((t) => t.id !== text.id);
+      page.markTexts();
+      this.ctx.project.stock.push({ kind: 'clip', id, texts: [{ ...text, x: 0, y: 0 }] });
+    });
+    this.onSelectionChange();
+    return true;
   }
 
   /** Apply a property change to the selected text as one undo step. */

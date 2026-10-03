@@ -1,8 +1,12 @@
 // Rectangle / lasso cut into a floating clip that can be moved, scaled, rotated,
 // flipped and baked back onto either page of the spread (MangaSketcher pasteboard).
-import { PX_PER_M, RASTER_H, RASTER_W } from './doc.js';
+// Texts touching the cut ride along with the ink and land back on the pages as texts.
+// A clip is either on a page or in the stock: cutting to the stock takes it off the
+// page, and a clip pasted from the stock leaves the stock once it is placed.
+import { PX_PER_M, RASTER_H, RASTER_W, newId, type StockItem, type TextBox } from './doc.js';
+import type { HistoryEntry } from './history.js';
 import { clampRect, makePatch, inkEntry, opaqueBounds, unionRect, type Rect, type InkPatch } from './patches.js';
-import { canvasTexture, ctx2d, makeCanvas, type PageRt } from './project.js';
+import { canvasTexture, composeClip, ctx2d, makeCanvas, type PageRt } from './project.js';
 import type { ClipView, SlotRect } from './board.js';
 import type { StudioCtx } from './studio-ctx.js';
 
@@ -16,6 +20,8 @@ interface Backup {
   rect: SlotRect;
   /** Page left the board while the clip floated: keep its cut, never bake into it. */
   carried?: boolean;
+  /** The page's texts when the clip was made (undo, and cancel puts cut texts back). */
+  texts: TextBox[];
 }
 
 interface FloatingClip extends ClipView {
@@ -24,6 +30,69 @@ interface FloatingClip extends ClipView {
   /** Pasted from outside (stock / diorama): committing it always counts as an edit. */
   floated: boolean;
   origin: { cx: number; cy: number };
+  /** Ink only, for baking; `texture` shows `display` (ink with the texts on top). */
+  display: HTMLCanvasElement;
+  /** Texts carried with the clip, in clip px. */
+  texts: TextBox[];
+  /** Stock clip this came from: it leaves the stock when the clip is placed. */
+  stockId: string | null;
+}
+
+/** A page's texts before and after a clip took or placed some. */
+interface TextChange {
+  page: PageRt;
+  before: TextBox[];
+  after: TextBox[];
+}
+
+/** A stock edit made together with a clip, applied and reverted with it. */
+interface StockChange {
+  apply(): void;
+  revert(): void;
+}
+
+const copyTexts = (texts: readonly TextBox[]): TextBox[] => texts.map((t) => ({ ...t }));
+
+/** Whether rect (temp px) touches a closed polygon of [x, y, ...] points: any overlap counts. */
+function rectTouchesPolygon(r: Rect, poly: readonly number[]): boolean {
+  const x1 = r.x + r.w;
+  const y1 = r.y + r.h;
+  const n = poly.length / 2;
+  const inside = (x: number, y: number): boolean => {
+    let hit = false;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = poly[i * 2]!;
+      const yi = poly[i * 2 + 1]!;
+      const xj = poly[j * 2]!;
+      const yj = poly[j * 2 + 1]!;
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  if (inside(r.x, r.y) || inside(x1, r.y) || inside(x1, y1) || inside(r.x, y1)) return true;
+  // Otherwise an outline segment must cross the rect: clip each one against it.
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const ax = poly[j * 2]!;
+    const ay = poly[j * 2 + 1]!;
+    const bx = poly[i * 2]!;
+    const by = poly[i * 2 + 1]!;
+    let t0 = 0;
+    let t1 = 1;
+    const dx = bx - ax;
+    const dy = by - ay;
+    let hit = true;
+    for (const [p, q] of [[-dx, ax - r.x], [dx, x1 - ax], [-dy, ay - r.y], [dy, y1 - ay]] as const) {
+      if (p === 0) {
+        if (q < 0) hit = false;
+      } else {
+        const t = q / p;
+        if (p < 0) t0 = Math.max(t0, t);
+        else t1 = Math.min(t1, t);
+      }
+    }
+    if (hit && t0 <= t1) return true;
+  }
+  return false;
 }
 
 const pool: HTMLCanvasElement[] = [];
@@ -143,20 +212,35 @@ export class Selection {
       const backup = backups.get(page.id);
       if (backup != null) backup.dirty = region;
     }
-    const tight = opaqueBounds(canvas);
+    const texts = this.cutTexts(this.lasso ? pts.map((v, i) => (i % 2 === 0 ? (v - minX) * PX_PER_M : (maxY - v) * PX_PER_M)) : null, wPx, hPx, toClip);
+    let tight = opaqueBounds(canvas);
+    for (const t of texts) tight = unionRect(tight, t);
     if (tight == null) {
       this.releaseBackups(backups);
-      this.ctx.toast('選択範囲に線がありません');
+      this.ctx.toast('選択範囲に線や文字がありません');
       return false;
     }
-    const trimmed = makeCanvas(tight.w, tight.h);
-    ctx2d(trimmed).drawImage(canvas, tight.x, tight.y, tight.w, tight.h, 0, 0, tight.w, tight.h);
+    // Texts may reach past the marquee: the clip spans the ink and every text it took.
+    const x0 = Math.floor(tight.x);
+    const y0 = Math.floor(tight.y);
+    const tw = Math.ceil(tight.x + tight.w) - x0;
+    const th = Math.ceil(tight.y + tight.h) - y0;
+    const trimmed = makeCanvas(tw, th);
+    ctx2d(trimmed).drawImage(canvas, -x0, -y0);
     canvas.width = 0;
+    for (const t of texts) {
+      t.x -= x0;
+      t.y -= y0;
+    }
+    const display = composeClip(trimmed, texts);
     this.clip = {
       canvas: trimmed,
-      texture: canvasTexture(trimmed),
-      cx: minX + (tight.x + tight.w / 2) / PX_PER_M,
-      cy: maxY - (tight.y + tight.h / 2) / PX_PER_M,
+      display,
+      texts,
+      stockId: null,
+      texture: canvasTexture(display),
+      cx: minX + (x0 + tw / 2) / PX_PER_M,
+      cy: maxY - (y0 + th / 2) / PX_PER_M,
       sx: 1,
       sy: 1,
       rot: 0,
@@ -170,15 +254,30 @@ export class Selection {
     return true;
   }
 
-  /** Float an external image (stock clip, diorama snapshot) over the current page. */
-  float(source: HTMLCanvasElement, cx: number, cy: number, label: string, fitWidth?: number): void {
+  /**
+   * Float an external image (stock clip, diorama snapshot) over the current page. A stock
+   * clip brings its texts and leaves the stock once placed (cancel keeps it there).
+   */
+  float(
+    source: HTMLCanvasElement,
+    cx: number,
+    cy: number,
+    label: string,
+    fitWidth?: number,
+    from?: { texts?: readonly TextBox[]; stockId?: string },
+  ): void {
     this.commit();
     const canvas = makeCanvas(source.width, source.height);
     ctx2d(canvas).drawImage(source, 0, 0);
     const scale = fitWidth != null ? Math.min(1, (fitWidth * PX_PER_M) / source.width) : 1;
+    const texts = copyTexts(from?.texts ?? []);
+    const display = composeClip(canvas, texts);
     this.clip = {
       canvas,
-      texture: canvasTexture(canvas),
+      display,
+      texts,
+      stockId: from?.stockId ?? null,
+      texture: canvasTexture(display),
       cx,
       cy,
       sx: scale,
@@ -270,7 +369,7 @@ export class Selection {
     this.show();
   }
 
-  /** Copy of the clip pixels for the stock. */
+  /** Copy of the clip's ink pixels. */
   snapshotCanvas(): HTMLCanvasElement | null {
     if (this.clip == null) return null;
     const out = makeCanvas(this.clip.canvas.width, this.clip.canvas.height);
@@ -321,7 +420,8 @@ export class Selection {
       const region = unionRect(backup.dirty, bake);
       if (region != null) patches.push(makePatch(page, backup.canvas, region));
     }
-    this.finish(patches, clip.label);
+    this.placeTexts(clip);
+    this.finish(patches, clip.label, clip.stockId != null ? this.takeFromStock(clip.stockId) : null);
   }
 
   /** Put everything back exactly as before the cut; no history. */
@@ -334,27 +434,161 @@ export class Selection {
       b.page.ctx.drawImage(b.canvas, b.dirty.x, b.dirty.y, b.dirty.w, b.dirty.h, b.dirty.x, b.dirty.y, b.dirty.w, b.dirty.h);
       b.page.markInk();
     }
+    // Texts are only ever taken off a page while a clip floats, so a shorter list means a cut.
+    for (const b of clip.backups.values()) {
+      if (b.page.texts.length === b.texts.length) continue;
+      b.page.texts = copyTexts(b.texts);
+      b.page.markTexts();
+      this.ctx.refreshTexts(b.page);
+    }
     this.finish([], '');
   }
 
-  /** Drop the clip; the cut area stays empty (undoable). */
+  /** Drop the clip; the cut area stays empty (undoable). A clip from the stock is gone from it too. */
   remove(): void {
     const clip = this.clip;
     if (clip == null) return;
+    this.finish(this.cutPatches(clip), '選択範囲の削除', clip.stockId != null ? this.takeFromStock(clip.stockId) : null);
+  }
+
+  /**
+   * Move the clip (ink and texts, as cut) into the stock; the pages keep no copy. A clip
+   * pasted from the stock just goes back there. False when nothing is selected.
+   */
+  toStock(): boolean {
+    const clip = this.clip;
+    if (clip == null) return false;
+    if (clip.stockId != null) {
+      this.cancel();
+      return true;
+    }
+    const project = this.ctx.project;
+    const id = newId('clip');
+    const ink = makeCanvas(clip.canvas.width, clip.canvas.height);
+    ctx2d(ink).drawImage(clip.canvas, 0, 0);
+    project.clips.set(id, ink);
+    const texts = copyTexts(clip.texts);
+    const same = (s: StockItem) => s.kind === 'clip' && s.id === id;
+    this.finish(this.cutPatches(clip), 'ストックへ切り出し', {
+      apply: () => {
+        if (project.stock.some(same)) return;
+        project.stock.push(texts.length > 0 ? { kind: 'clip', id, texts: copyTexts(texts) } : { kind: 'clip', id });
+      },
+      revert: () => {
+        project.stock = project.stock.filter((s) => !same(s));
+      },
+    });
+    return true;
+  }
+
+  /** Patches that keep the cut areas empty. */
+  private cutPatches(clip: FloatingClip): InkPatch[] {
     const patches: InkPatch[] = [];
     for (const b of clip.backups.values()) {
       if (b.dirty != null) patches.push(makePatch(b.page, b.canvas, b.dirty));
     }
-    this.finish(patches, '選択範囲の削除');
+    return patches;
+  }
+
+  /** Taking stock clip `id` out of the stock, or null when it is no longer there. */
+  private takeFromStock(id: string): StockChange | null {
+    const project = this.ctx.project;
+    const same = (s: StockItem) => s.kind === 'clip' && s.id === id;
+    const index = project.stock.findIndex(same);
+    if (index < 0) return null;
+    const item = project.stock[index]!;
+    return {
+      apply: () => {
+        project.stock = project.stock.filter((s) => !same(s));
+      },
+      revert: () => {
+        if (!project.stock.some(same)) project.stock.splice(Math.min(index, project.stock.length), 0, item);
+      },
+    };
+  }
+
+  /** Put the clip's texts on the shown page under each, following the clip's move, scale and mirroring. */
+  private placeTexts(clip: FloatingClip): void {
+    const targets = [...clip.backups.values()].filter((b) => !b.carried);
+    if (targets.length === 0) return;
+    const w = clip.canvas.width;
+    const h = clip.canvas.height;
+    const s = Math.abs(clip.sy);
+    const cos = Math.cos(clip.rot);
+    const sin = Math.sin(clip.rot);
+    for (const t of clip.texts) {
+      // Texts move with the clip but stay upright: only their centres turn.
+      const lx = ((t.x + t.w / 2 - w / 2) / PX_PER_M) * clip.sx;
+      const ly = (-(t.y + t.h / 2 - h / 2) / PX_PER_M) * clip.sy;
+      const bx = clip.cx + lx * cos - ly * sin;
+      const by = clip.cy + lx * sin + ly * cos;
+      // The shown page under the text's centre, else the nearest one.
+      let best = targets[0]!;
+      let bestDistance = Infinity;
+      for (const b of targets) {
+        const r = b.rect;
+        const dx = Math.max(r.x0 - bx, 0, bx - r.x1);
+        const dy = Math.max(r.y0 - by, 0, by - r.y1);
+        if (dx * dx + dy * dy < bestDistance) {
+          bestDistance = dx * dx + dy * dy;
+          best = b;
+        }
+      }
+      const r = best.rect;
+      const tw = t.w * s;
+      const th = t.h * s;
+      best.page.texts.push({
+        ...t,
+        id: newId('tx'),
+        fontSize: t.fontSize * s,
+        w: tw,
+        h: th,
+        x: (bx - r.x0) * PX_PER_M - tw / 2,
+        y: (r.y1 - by) * PX_PER_M - th / 2,
+      });
+      best.page.markTexts();
+    }
+  }
+
+  /** Take every shown text touching the marquee off its page; returns copies in marquee px. */
+  private cutTexts(
+    poly: number[] | null,
+    wPx: number,
+    hPx: number,
+    toClip: (x: number, y: number) => [number, number],
+  ): TextBox[] {
+    const board = this.ctx.board;
+    const taken: TextBox[] = [];
+    for (const [slotIndex, slot] of board.slots.entries()) {
+      const page = slot.page;
+      if (page == null || (board.single && slotIndex === 1)) continue;
+      const r = board.slotRect(slotIndex);
+      const [ox, oy] = toClip(r.x0, r.y1);
+      const keep: TextBox[] = [];
+      for (const t of page.texts) {
+        const rect = { x: ox + t.x, y: oy + t.y, w: t.w, h: t.h };
+        const touches =
+          poly != null
+            ? rectTouchesPolygon(rect, poly)
+            : rect.x < wPx && rect.x + rect.w > 0 && rect.y < hPx && rect.y + rect.h > 0;
+        if (touches && t.content.trim().length > 0) taken.push({ ...t, x: rect.x, y: rect.y });
+        else keep.push(t);
+      }
+      if (keep.length === page.texts.length) continue;
+      page.texts = keep;
+      page.markTexts();
+      this.ctx.refreshTexts(page);
+    }
+    return taken;
   }
 
   /** Bake a copy at the current spot and keep floating the original. */
   duplicate(): void {
     const clip = this.clip;
     if (clip == null) return;
-    const keep = { ...clip, canvas: this.snapshotCanvas()! };
+    const keep = { ...clip, canvas: this.snapshotCanvas()!, texts: copyTexts(clip.texts) };
     this.commit();
-    this.float(keep.canvas, keep.cx + 0.012, keep.cy - 0.012, '複製の配置');
+    this.float(keep.canvas, keep.cx + 0.012, keep.cy - 0.012, '複製の配置', undefined, { texts: keep.texts });
     if (this.clip != null) {
       this.clip.sx = keep.sx;
       this.clip.sy = keep.sy;
@@ -385,24 +619,73 @@ export class Selection {
       const c = ctx2d(canvas);
       c.clearRect(0, 0, RASTER_W, RASTER_H);
       c.drawImage(page.ink, 0, 0);
-      clip.backups.set(page.id, { page, canvas, dirty: null, rect: board.slotRect(i) });
+      clip.backups.set(page.id, { page, canvas, dirty: null, rect: board.slotRect(i), texts: copyTexts(page.texts) });
     }
     clip.floated = true;
     this.show();
   }
 
-  private finish(patches: InkPatch[], label: string): void {
+  private finish(patches: InkPatch[], label: string, stock: StockChange | null = null): void {
     const clip = this.clip;
     if (clip == null) return;
     this.clip = null;
     this.drag = null;
     clip.texture.dispose();
+    if (clip.display !== clip.canvas) clip.display.width = 0;
+    const texts: TextChange[] = [];
+    for (const b of clip.backups.values()) {
+      if (JSON.stringify(b.page.texts) === JSON.stringify(b.texts)) continue;
+      texts.push({ page: b.page, before: b.texts, after: copyTexts(b.page.texts) });
+    }
     this.releaseBackups(clip.backups);
     this.ctx.board.showClip(null);
-    if (patches.length > 0) {
-      this.ctx.history.push(inkEntry(label, patches, () => this.ctx.markDirty()));
+    stock?.apply();
+    if (patches.length > 0 || texts.length > 0 || stock != null) {
+      this.ctx.history.push(this.entry(label, patches, texts, stock));
       this.ctx.markDirty();
     }
+    if (texts.length > 0) this.ctx.refreshTexts();
+    if (stock != null) {
+      this.ctx.project.emit('struct');
+      this.ctx.refreshBoard();
+    }
+  }
+
+  /** One undo step for the ink, the texts the clip moved and the stock edit made with it. */
+  private entry(label: string, patches: InkPatch[], texts: TextChange[], stock: StockChange | null): HistoryEntry {
+    const ctx = this.ctx;
+    const ink = inkEntry(label, patches, () => {});
+    const set = (which: 'before' | 'after') => {
+      for (const t of texts) {
+        t.page.texts = copyTexts(t[which]);
+        t.page.markTexts();
+      }
+    };
+    const done = () => {
+      ctx.refreshTexts();
+      if (stock != null) {
+        ctx.project.emit('struct');
+        ctx.refreshBoard();
+      }
+      ctx.markDirty();
+    };
+    return {
+      label,
+      bytes: ink.bytes,
+      dispose: ink.dispose,
+      undo: () => {
+        ink.undo();
+        set('before');
+        stock?.revert();
+        done();
+      },
+      redo: () => {
+        ink.redo();
+        set('after');
+        stock?.apply();
+        done();
+      },
+    };
   }
 
   private show(): void {
@@ -425,7 +708,7 @@ export class Selection {
       const c = ctx2d(canvas);
       c.clearRect(0, 0, RASTER_W, RASTER_H);
       c.drawImage(slot.page.ink, 0, 0);
-      backups.set(slot.page.id, { page: slot.page, canvas, dirty: null, rect: board.slotRect(i) });
+      backups.set(slot.page.id, { page: slot.page, canvas, dirty: null, rect: board.slotRect(i), texts: copyTexts(slot.page.texts) });
     }
     return backups;
   }
