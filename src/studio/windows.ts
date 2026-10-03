@@ -260,7 +260,9 @@ export class Windows {
   }
 
   belted(id: string): boolean {
-    return this.items.find((i) => i.spec.id === id)?.dock === 'belt';
+    // Asked every frame the quick menu shows: no closure.
+    for (const item of this.items) if (item.spec.id === id) return item.dock === 'belt';
+    return false;
   }
 
   /** Move dragged windows, ride docked ones on their wrist or the belt, and keep bars next to their windows. */
@@ -395,7 +397,7 @@ export class Windows {
     };
     // Before the store's own listener: a drag must know its side when it begins.
     const down = (e: { pointerId: number }) => {
-      if (!knob.carried) knob.side = this.sideOf(e.pointerId) ?? null;
+      if (!knob.carried && !knob.dragged) knob.side = this.sideOf(e.pointerId) ?? null;
     };
     const enter = (e: { pointerId: number }) => {
       knob.hovers.add(e.pointerId);
@@ -509,7 +511,8 @@ export class Windows {
     if (dock == null) this.saveSpace(item);
     // Moved along the belt: it stays where it was put.
     if (dock === 'belt' && item.dock === 'belt') prefs.belt = this.docks.toBody(this.center(item, this.v));
-    this.setDock(item, dock);
+    // Outside XR there are no docks to drop on: a docked window moved there stays docked.
+    if (this.docks.immersive) this.setDock(item, dock);
     savePrefs();
   }
 
@@ -518,7 +521,11 @@ export class Windows {
     item.dock = dock;
     if (dock == null) delete prefs.docks[id];
     else prefs.docks[id] = dock;
-    if (isWrist(dock)) this.shown[dock] = item;
+    if (isWrist(dock)) {
+      this.shown[dock] = item;
+      // Controllers: show what was just docked rather than hiding it until the stick is clicked.
+      this.docks.wrists[dock].toggled = true;
+    }
   }
 
   private saveSpace(item: Item): void {
