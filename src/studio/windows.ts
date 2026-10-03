@@ -79,7 +79,7 @@ export class Windows {
   ) {}
 
   add(spec: WindowSpec): void {
-    const pill = new Mesh(this.pillGeometry, new MeshBasicMaterial({ color: 0xd8dde6, transparent: true, opacity: 0.5, depthWrite: false }));
+    const pill = new Mesh(this.pillGeometry, new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }));
     pill.name = 'WindowBarPill';
     pill.raycast = () => undefined;
     // The visible pill is slim; a larger invisible slab takes the rays and hands.

@@ -12,6 +12,8 @@ export const PEN_TUNING = {
   handReach: 0.028,
   /** Tip distance past the controller ray origin. */
   controllerReach: 0.085,
+  /** The tool model leans up this far at the ray origin so its head clears the controller. */
+  controllerLift: 0.03,
   /** Thumb–index tip distance that closes / opens the grip (hysteresis). */
   gripOn: 0.04,
   gripOff: 0.06,
@@ -194,6 +196,8 @@ export class PenRig {
     const origin = this.a.setFromMatrixPosition(space.matrixWorld);
     pen.axis.set(0, 0, -1).transformDirection(space.matrixWorld);
     pen.tip.copy(origin).addScaledVector(pen.axis, PEN_TUNING.controllerReach);
+    const butt = origin.addScaledVector(this.b.set(0, 1, 0).transformDirection(space.matrixWorld), PEN_TUNING.controllerLift);
+    pen.axis.subVectors(pen.tip, butt).normalize();
     pen.fresh = true;
     return true;
   }

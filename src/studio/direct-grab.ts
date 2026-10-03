@@ -24,7 +24,7 @@ export interface GrabTarget {
   /** False while it cannot be taken (hidden, held by a ray, ...). */
   available(): boolean;
   highlight(level: GrabLevel): void;
-  begin(side: Side): void;
+  begin(): void;
   move(world: Matrix4): void;
   end(): void;
 }
@@ -119,8 +119,9 @@ export class DirectGrab {
           hold.target.move(this.carried.multiplyMatrices(frame, hold.offset));
         }
       }
-      this.near[side] = hold.target == null && tracked ? this.nearest(side, frame) : null;
-      // Only a fresh squeeze or pinch takes: a hand already closed (holding the pen) passes by.
+      // Only a fresh squeeze or pinch takes, so a hand already closed (holding the pen)
+      // passes by without offering anything.
+      this.near[side] = hold.target == null && tracked && !this.closed[side] ? this.nearest(side, frame) : null;
       const candidate = this.near[side];
       if (closed && !this.closed[side] && candidate != null) this.take(side, candidate, frame);
       // A hand that loses tracking counts as closed, so one regained mid-pinch takes nothing.
@@ -179,7 +180,7 @@ export class DirectGrab {
     // (a drop would land a diorama piece on the floor mid-air).
     const other = this.holds[side === 'left' ? 'right' : 'left'];
     if (other.target === target) other.target = null;
-    else target.begin(side);
+    else target.begin();
     this.pulse(side, 0.35);
   }
 
