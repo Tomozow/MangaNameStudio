@@ -52,6 +52,7 @@ import { studioBridge } from './studio-ctx.js';
 import { applyJapaneseFont, bindButton, setChip, setText } from './ui-kit.js';
 
 const MINI = 1 / 12;
+const PEDESTAL_R = 0.36;
 const STAGE_RADIUS = 3.6;
 const RT_W = 768;
 const RT_H = 576;
@@ -189,7 +190,7 @@ export class DioramaSystem extends createSystem({
     const anchorEntity = this.world.requireSceneEntity('diorama-anchor');
     this.anchor = anchorEntity.object3D!;
     const pedestal = new Mesh(
-      new RingGeometry(0.02, 0.36, 64),
+      new RingGeometry(0.02, PEDESTAL_R, 64),
       new MeshBasicMaterial({ color: 0x23262c, transparent: true, opacity: 0.85 }),
     );
     pedestal.rotation.x = -Math.PI / 2;
@@ -248,10 +249,26 @@ export class DioramaSystem extends createSystem({
       id: 'camera-monitor',
       object: monitor,
       parent: anchorEntity,
-      bottomCenter: (out) => {
-        monitor.updateMatrix();
-        return out.set(0, -0.128, 0).applyMatrix4(monitor.matrix);
+      bounds: (out) => {
+        out.min.set(-0.17, -0.128, 0);
+        out.max.set(0.17, 0.143, 0);
+        return out;
       },
+      resize: true,
+    });
+    // A handle at the pedestal's front edge moves the whole diorama and a grip scales it:
+    // pieces, camera and monitor are the anchor's children, so they follow.
+    studioBridge.studio?.addWindow({
+      id: 'diorama',
+      object: this.anchor,
+      parent: this.world.requireSceneEntity('studio-rig'),
+      bounds: (out) => {
+        out.min.set(-PEDESTAL_R, -0.035, -PEDESTAL_R);
+        out.max.set(PEDESTAL_R, 0, PEDESTAL_R);
+        return out;
+      },
+      resize: true,
+      level: true,
     });
 
     this.cleanupFuncs.push(
@@ -595,7 +612,8 @@ export class DioramaSystem extends createSystem({
     target.y = 0;
     this.anchor.worldToLocal(target);
     root.position.copy(target);
-    root.scale.setScalar(1);
+    // Life size whatever size the diorama's anchor was scaled to.
+    root.scale.setScalar(1 / this.anchor.scale.x);
     const e = rig.matrixWorld.elements;
     const a = this.anchor.matrixWorld.elements;
     const rigYaw = Math.atan2(e[8]!, e[10]!);

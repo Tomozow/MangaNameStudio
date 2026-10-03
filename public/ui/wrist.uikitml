@@ -79,6 +79,9 @@
     <Button id="wrist-recenter" class="key" variant="secondary"><LocateFixed class="ico" /><ButtonLabel class="key-label">正面に呼ぶ</ButtonLabel></Button>
   </div>
   <div class="row">
+    <Button id="wrist-belt" class="key wide-key" variant="secondary"><PanelBottom class="ico" /><ButtonLabel id="wrist-belt-label" class="key-label">ツールをベルトに付ける</ButtonLabel></Button>
+  </div>
+  <div class="row">
     <Button id="wrist-layout" class="key wide-key" variant="secondary"><LayoutDashboard class="ico" /><ButtonLabel id="wrist-layout-label" class="key-label">ウィンドウ配置を戻す</ButtonLabel></Button>
   </div>
 </Panel>

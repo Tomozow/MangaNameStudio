@@ -155,6 +155,11 @@ export class References {
     return (SHEET_H * this.sheetRoot.scale.y * 1.03) / 2;
   }
 
+  /** Half the sheet's width (with its backing) either side of the PDF anchor. */
+  get sheetHalfWidth(): number {
+    return (this.sheet.scale.x * this.sheetRoot.scale.x * 1.04) / 2;
+  }
+
   zoomSheet(k: number): void {
     const s = Math.min(2.4, Math.max(0.6, this.sheetRoot.scale.x * k));
     this.sheetRoot.scale.setScalar(s);

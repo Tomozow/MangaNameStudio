@@ -24,7 +24,8 @@ export interface GrabTarget {
   /** False while it cannot be taken (hidden, held by a ray, ...). */
   available(): boolean;
   highlight(level: GrabLevel): void;
-  begin(): void;
+  /** Taken by the hand on `side`. */
+  begin(side: Side): void;
   move(world: Matrix4): void;
   end(): void;
 }
@@ -185,7 +186,7 @@ export class DirectGrab {
     // (a drop would land a diorama piece on the floor mid-air).
     const other = this.holds[side === 'left' ? 'right' : 'left'];
     if (other.target === target) other.target = null;
-    else target.begin();
+    else target.begin(side);
     this.pulse(side, 0.35);
   }
 

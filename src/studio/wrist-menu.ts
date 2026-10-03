@@ -1,5 +1,6 @@
 // Quick menu on the left wrist. With hands it shows while the left palm faces the
-// head; with controllers a left stick click toggles it. It follows the hand and
+// head (the back of a hand shows the windows docked there); with controllers a left
+// stick click toggles it. It follows the hand and
 // turns to face the head, and the other hand's pen, finger or ray presses it.
 import {
   InputComponent,
@@ -45,6 +46,9 @@ export interface WristActions {
   recenter(): void;
   /** Put every moved window back where it started. */
   resetLayout(): void;
+  /** Wear the tool palette on the belt, or put it back. */
+  toggleBelt(): void;
+  belted(): boolean;
 }
 
 /**
@@ -62,6 +66,7 @@ export class WristMenu {
   private settled = false;
   private shownLeft: ToolId | null = null;
   private shownRight: ToolId | null = null;
+  private shownBelt: boolean | null = null;
   /** When the layout reset was first pressed (0: not armed). */
   private resetArmed = 0;
   private readonly m = new Matrix4();
@@ -78,7 +83,7 @@ export class WristMenu {
     private readonly world: World,
     readonly panel: UIKitMLAsset,
     private readonly hands: Readonly<Record<Side, ToolId>>,
-    actions: WristActions,
+    private readonly actions: WristActions,
     cleanup: Array<() => void>,
   ) {
     bindButton(panel, 'wrist-undo', () => actions.undo(), cleanup);
@@ -89,6 +94,7 @@ export class WristMenu {
     bindButton(panel, 'wrist-zoom-in', () => actions.zoom(1.25), cleanup);
     bindButton(panel, 'wrist-swap', () => actions.swap(), cleanup);
     bindButton(panel, 'wrist-recenter', () => actions.recenter(), cleanup);
+    bindButton(panel, 'wrist-belt', () => actions.toggleBelt(), cleanup);
     bindButton(panel, 'wrist-layout', () => {
       const since = performance.now() - this.resetArmed;
       if (this.resetArmed > 0 && since < CONFIRM_MS.max) {
@@ -164,6 +170,12 @@ export class WristMenu {
   }
 
   private refreshHands(): void {
+    const belted = this.actions.belted();
+    if (belted !== this.shownBelt) {
+      this.shownBelt = belted;
+      setText(this.panel, 'wrist-belt-label', belted ? 'ツールをベルトから外す' : 'ツールをベルトに付ける');
+      setProps(this.panel, 'wrist-belt', { variant: belted ? 'primary' : 'secondary' });
+    }
     const { left, right } = this.hands;
     if (left === this.shownLeft && right === this.shownRight) return;
     this.shownLeft = left;

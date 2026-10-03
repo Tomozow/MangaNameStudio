@@ -32,10 +32,11 @@ import { References } from './refs.js';
 import * as storage from './storage.js';
 import { studioBridge, type StudioApi } from './studio-ctx.js';
 import { TextInput } from './text-input.js';
+import { ToastHud } from './toast-hud.js';
 import { loadTextFont } from './text-render.js';
 import { applyJapaneseFont } from './ui-kit.js';
 import { ToolController, type BoardPoint } from './tools.js';
-import { Windows, panelBottom, type WindowSpec } from './windows.js';
+import { Windows, panelBounds, rectBounds, type WindowSpec } from './windows.js';
 import { WristMenu } from './wrist-menu.js';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -91,6 +92,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private manager: ManagerUi | null = null;
   private refs: References | null = null;
   private wrist: WristMenu | null = null;
+  private hud: ToastHud | null = null;
   private autosave!: Autosave;
   private pens!: PenRig;
   private grab!: DirectGrab;
@@ -206,6 +208,9 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
 
   toast(message: string): void {
     this.palette?.toast(message);
+    // Put away on a wrist, the palette cannot show it: float it below the line of sight.
+    const panel = this.world.getSceneObject('tool-palette');
+    if (panel != null && !panel.visible && this.world.visibilityState.peek() !== VisibilityState.NonImmersive) this.hud?.show(message);
   }
 
   haptic(strength = 0.3): void {
@@ -427,6 +432,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
           this.windows.resetLayout();
           this.toast('ウィンドウを最初の配置に戻しました');
         },
+        toggleBelt: () => {
+          const on = this.windows.toggleBelt('tool-palette');
+          this.toast(on ? 'ツールパレットを腰の前に付けました (どちらの手でも押せます)' : 'ツールパレットを元の位置に戻しました');
+        },
+        belted: () => this.windows.belted('tool-palette'),
       }, c);
     }
   }
@@ -443,27 +453,41 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     if (this.wrist != null) this.uiTargets.right.push(this.wrist.panel);
   }
 
-  /** Grab bars under the panels, the board and the PDF sheet (the diorama adds its monitor), and stock cards. */
+  /** Grab bars under the panels, the board and the PDF sheet (the diorama adds its stage and monitor), and stock cards. */
   private buildWindows(): void {
     this.grab = new DirectGrab(this.world, this.pens);
-    this.windows = new Windows(this.world, this.grab, this.cleanupFuncs);
+    this.windows = new Windows(this.world, this.grab, (id) => this.sideOfPointer(id), this.cleanupFuncs);
     const rig = this.world.requireSceneEntity('studio-rig');
-    for (const [id, root] of [['tool-palette', 'tool-root'], ['manager', 'manager-root'], ['diorama-palette', 'diorama-root']] as const) {
+    this.hud = new ToastHud(this.world, rig, this.cleanupFuncs);
+    // Docked sizes put each panel about 15 cm wide on a wrist; the belt sits further from the eyes.
+    const panels = [
+      ['tool-palette', 'tool-root', { title: 'ツール', wrist: 0.5, belt: 0.7 }],
+      ['manager', 'manager-root', { title: 'ページ・資料', wrist: 0.48 }],
+      ['diorama-palette', 'diorama-root', { title: 'ジオラマ', wrist: 0.45 }],
+    ] as const;
+    for (const [id, root, dock] of panels) {
       const panel = this.world.getSceneObject<UIKitMLAsset>(id);
-      if (panel != null) this.windows.add({ id, object: panel, parent: rig, bottomCenter: (out) => panelBottom(panel, root, out) });
+      if (panel != null) this.windows.add({ id, object: panel, parent: rig, bounds: (out) => panelBounds(panel, root, out), resize: true, dock });
     }
-    const below = (id: string, object: Object3D, depth: () => number): WindowSpec => ({
-      id,
-      object,
+    this.windows.add({
+      id: 'board',
+      object: this.world.requireSceneObject('board-anchor'),
       parent: rig,
-      bottomCenter: (out) => {
-        object.updateMatrix();
-        return out.set(0, -depth(), 0).applyMatrix4(object.matrix);
-      },
+      bounds: (out) => rectBounds(out, WINDOW_W / 2, WINDOW_H / 2 + 0.015),
     });
-    this.windows.add(below('board', this.world.requireSceneObject('board-anchor'), () => WINDOW_H / 2 + 0.015));
     const refs = this.refs;
-    if (refs != null) this.windows.add(below('pdf', this.world.requireSceneObject('pdf-anchor'), () => refs.sheetHalfHeight));
+    if (refs != null) {
+      this.windows.add({
+        id: 'pdf',
+        object: this.world.requireSceneObject('pdf-anchor'),
+        parent: rig,
+        bounds: (out) => rectBounds(out, refs.sheetHalfWidth, refs.sheetHalfHeight),
+        resize: true,
+      });
+    }
+    // Tabs of windows sharing a wrist: either hand's pen presses them.
+    this.uiTargets.left.push(...this.windows.pressables);
+    this.uiTargets.right.push(...this.windows.pressables);
     this.stock = new StockCards(this.world, this, this.grab, this.navigator, rig, this.cleanupFuncs, (id) => this.tools.selection.clip?.stockId === id);
   }
 
@@ -684,6 +708,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     // Place the wrist menu before the pens probe it this frame.
     this.wrist?.update(delta);
     this.updatePens(delta);
+    this.hud?.update(delta);
     // After the windows moved this frame, so a carried board clips where it is drawn.
     this.board.updateClipPlanes();
     const active = this.active;
@@ -1150,13 +1175,15 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       zoom: Math.round(this.board.zoom * 100) / 100,
       grip: this.grip.active,
       grab: this.grab.debugTargets(),
+      windows: this.windows.debugState(),
+      hud: this.hud?.visible ?? null,
       // What is where: texts on the shown pages, stock entries (clips with their text count).
       shownTexts: this.board.slots.map((slot) => slot.page?.texts.map((t) => t.content) ?? null),
       stock: this.project.stock.map((s) => (s.kind === 'clip' ? `clip:${s.texts?.length ?? 0}` : 'page')),
       floating: this.tools.selection.clip != null ? { texts: this.tools.selection.clip.texts.length, stockId: this.tools.selection.clip.stockId } : null,
       // World centres of buttons emulator checks press with a ray.
       buttons: Object.fromEntries(
-        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['tool-palette', 'sel-stock'], ['tool-palette', 'text-stock']] as const).map(([panel, id]) => {
+        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['wrist-menu', 'wrist-belt'], ['tool-palette', 'sel-stock'], ['tool-palette', 'text-stock']] as const).map(([panel, id]) => {
           const el = this.world.getSceneObject<UIKitMLAsset>(panel)?.getElementById(id) as unknown as Object3D | null;
           el?.updateWorldMatrix(true, false);
           return [id, el != null ? round(new Vector3().setFromMatrixPosition(el.matrixWorld)) : null];
