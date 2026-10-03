@@ -47,8 +47,11 @@ export interface WristActions {
   resetLayout(): void;
 }
 
-/** A second press within this time confirms the layout reset (ms). */
-const CONFIRM_MS = 3000;
+/**
+ * A second press within this time confirms the layout reset (ms). Presses closer than
+ * `min` are a pen tip bouncing on the key (touch has no hysteresis), not a confirmation.
+ */
+const CONFIRM_MS = { min: 400, max: 3000 };
 const LAYOUT_LABEL = 'ウィンドウ配置を戻す';
 
 export class WristMenu {
@@ -87,7 +90,9 @@ export class WristMenu {
     bindButton(panel, 'wrist-swap', () => actions.swap(), cleanup);
     bindButton(panel, 'wrist-recenter', () => actions.recenter(), cleanup);
     bindButton(panel, 'wrist-layout', () => {
-      if (this.resetArmed > 0 && performance.now() - this.resetArmed < CONFIRM_MS) {
+      const since = performance.now() - this.resetArmed;
+      if (this.resetArmed > 0 && since < CONFIRM_MS.max) {
+        if (since < CONFIRM_MS.min) return;
         this.disarm();
         actions.resetLayout();
         return;
@@ -110,7 +115,7 @@ export class WristMenu {
   }
 
   update(delta: number): void {
-    if (this.resetArmed > 0 && performance.now() - this.resetArmed >= CONFIRM_MS) this.disarm();
+    if (this.resetArmed > 0 && performance.now() - this.resetArmed >= CONFIRM_MS.max) this.disarm();
     const xr = this.world.input.xr;
     let show = false;
     this.world.camera.getWorldPosition(this.head);

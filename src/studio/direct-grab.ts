@@ -77,7 +77,7 @@ export class DirectGrab {
   add(target: GrabTarget): () => void {
     this.targets.add(target);
     return () => {
-      for (const side of SIDES) if (this.holds[side].target === target) this.release(side);
+      this.drop(target);
       this.targets.delete(target);
       if ((this.levels.get(target) ?? 0) > 0) target.highlight(0);
       this.levels.delete(target);

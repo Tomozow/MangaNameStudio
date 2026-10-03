@@ -150,7 +150,12 @@ export class StockCards {
     const project = this.project;
     if (project == null) return;
     const live = new Set(project.stock.map(key));
-    for (const [k, card] of [...this.cards]) if (!live.has(k)) this.remove(card);
+    for (const [k, card] of [...this.cards]) {
+      if (live.has(k)) continue;
+      this.remove(card);
+      // Its spot is free for other cards now: coming back to the stock lands it on a free one.
+      delete project.stockPlaces[card.item.id];
+    }
     for (const item of project.stock) {
       if (this.cards.has(key(item))) continue;
       const card = this.create(item);

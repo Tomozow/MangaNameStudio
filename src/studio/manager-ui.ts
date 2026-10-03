@@ -87,7 +87,9 @@ export class ManagerUi {
     bindButton(panel, 'stock-restore', () => this.restoreStock(), c);
     bindButton(panel, 'stock-delete', () => this.deleteStock(), c);
     bindButton(panel, 'stock-recall', () => {
-      if (this.stockMode === 'stock' && this.stockSel != null) actions.recallStock(this.stockSel);
+      // The selection may have left the stock meanwhile (its card was dropped on the name).
+      const entry = this.entries().find((e) => e.id === this.stockSel);
+      if (this.stockMode === 'stock' && entry != null) actions.recallStock(entry.id);
       else this.studio.toast('ストックの項目を選んでください');
     }, c);
 
