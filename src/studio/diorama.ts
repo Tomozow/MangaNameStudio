@@ -552,6 +552,8 @@ export class DioramaSystem extends createSystem({
       const m = (o as Mesh).material as MeshStandardMaterial | undefined;
       if (m != null && (m as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial === true) m.emissive.setHex(GLOW[level]);
     });
+    // The monitor shows the tint too: repaint it so a released piece never stays lit there.
+    this.viewDirty = true;
   }
 
   private onReleased(entity: Entity): void {
