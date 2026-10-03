@@ -81,6 +81,8 @@ export class PageRt {
   readonly thumbTex = canvasTexture(this.thumb);
   inkVersion = 0;
   savedVersion = 0;
+  /** Its texts before a floating clip took some; page-structure undo keeps these, not the cut. */
+  textsBeforeCut: TextBox[] | null = null;
   private inkTexture: CanvasTexture | null = null;
   private thumbStale = true;
 
@@ -298,7 +300,7 @@ export class Project {
 
   snapshot(): StructSnapshot {
     const texts: Record<string, TextBox[]> = {};
-    for (const [id, page] of this.pages) texts[id] = page.texts;
+    for (const [id, page] of this.pages) texts[id] = page.textsBeforeCut ?? page.texts;
     return {
       order: [...this.order],
       stock: this.stock.map(cloneStockItem),

@@ -266,6 +266,11 @@ export class Selection {
     fitWidth?: number,
     from?: { texts?: readonly TextBox[]; stockId?: string },
   ): void {
+    // Pasting the stock clip that is already out on the page again would place it twice.
+    if (from?.stockId != null && this.clip?.stockId === from.stockId) {
+      this.ctx.toast('このクリップは貼り付け中です。確定か取消をしてください');
+      return;
+    }
     this.commit();
     const canvas = makeCanvas(source.width, source.height);
     ctx2d(canvas).drawImage(source, 0, 0);
@@ -434,9 +439,8 @@ export class Selection {
       b.page.ctx.drawImage(b.canvas, b.dirty.x, b.dirty.y, b.dirty.w, b.dirty.h, b.dirty.x, b.dirty.y, b.dirty.w, b.dirty.h);
       b.page.markInk();
     }
-    // Texts are only ever taken off a page while a clip floats, so a shorter list means a cut.
     for (const b of clip.backups.values()) {
-      if (b.page.texts.length === b.texts.length) continue;
+      if (b.page.textsBeforeCut == null) continue;
       b.page.texts = copyTexts(b.texts);
       b.page.markTexts();
       this.ctx.refreshTexts(b.page);
@@ -537,14 +541,17 @@ export class Selection {
       const r = best.rect;
       const tw = t.w * s;
       const th = t.h * s;
+      // A text off every page would be invisible yet still there: keep its centre on the page.
+      const px = Math.min(Math.max(bx, r.x0), r.x1);
+      const py = Math.min(Math.max(by, r.y0), r.y1);
       best.page.texts.push({
         ...t,
         id: newId('tx'),
         fontSize: t.fontSize * s,
         w: tw,
         h: th,
-        x: (bx - r.x0) * PX_PER_M - tw / 2,
-        y: (r.y1 - by) * PX_PER_M - th / 2,
+        x: (px - r.x0) * PX_PER_M - tw / 2,
+        y: (r.y1 - py) * PX_PER_M - th / 2,
       });
       best.page.markTexts();
     }
@@ -575,6 +582,7 @@ export class Selection {
         else keep.push(t);
       }
       if (keep.length === page.texts.length) continue;
+      page.textsBeforeCut = page.texts;
       page.texts = keep;
       page.markTexts();
       this.ctx.refreshTexts(page);
@@ -634,6 +642,7 @@ export class Selection {
     if (clip.display !== clip.canvas) clip.display.width = 0;
     const texts: TextChange[] = [];
     for (const b of clip.backups.values()) {
+      b.page.textsBeforeCut = null;
       if (JSON.stringify(b.page.texts) === JSON.stringify(b.texts)) continue;
       texts.push({ page: b.page, before: b.texts, after: copyTexts(b.page.texts) });
     }

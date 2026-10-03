@@ -156,7 +156,6 @@ export function removeStockClip(ctx: StudioCtx, clipId: string): void {
   });
 }
 
-
 export function clearCurrentInk(ctx: StudioCtx): void {
   const page: PageRt | undefined = ctx.project.page(ctx.project.currentPage);
   if (page == null) return;
