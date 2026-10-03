@@ -2,7 +2,7 @@
 // index next to a target to pick it up, and it follows the hand until released.
 // Anything registered as a GrabTarget can be carried: diorama pieces, the director
 // camera and the window grab bars.
-import { Box3, InputComponent, Matrix4, Quaternion, Vector3, type Object3D, type World } from '@iwsdk/core';
+import { Box3, InputComponent, Matrix4, Vector3, type Object3D, type World } from '@iwsdk/core';
 import { SIDES, type Side } from './doc.js';
 import type { PenRig } from './pens.js';
 
@@ -66,8 +66,7 @@ export class DirectGrab {
   private readonly inv = new Matrix4();
   private readonly carried = new Matrix4();
   private readonly p = new Vector3();
-  private readonly q = new Quaternion();
-  private readonly s = new Vector3();
+  private readonly at = new Vector3();
 
   constructor(
     private readonly world: World,
@@ -124,25 +123,21 @@ export class DirectGrab {
       // Only a fresh squeeze or pinch takes: a hand already closed (holding the pen) passes by.
       const candidate = this.near[side];
       if (closed && !this.closed[side] && candidate != null) this.take(side, candidate, frame);
-      this.closed[side] = closed;
+      // A hand that loses tracking counts as closed, so one regained mid-pinch takes nothing.
+      this.closed[side] = closed || !tracked;
     }
     this.refreshHighlights();
   }
 
-  /** The hand's grab frame: controller grip, or the pinch point turned like the wrist. */
+  /**
+   * The hand's grab frame: the controller or hand grip. Carrying from the grip keeps a
+   * held object still while the fingers finish closing.
+   */
   private handFrame(side: Side, out: Matrix4): boolean {
     const xr = this.world.input.xr;
     const grip = this.world.player.gripSpaces[side];
     if (grip == null) return false;
-    if (xr.isPrimary('hand', side)) {
-      const pen = this.pens.pens[side];
-      if (pen.source !== 'hand') return false;
-      grip.updateWorldMatrix(true, false);
-      grip.matrixWorld.decompose(this.p, this.q, this.s);
-      out.compose(pen.pinch, this.q, this.s.set(1, 1, 1));
-      return true;
-    }
-    if (!xr.isPrimary('controller', side)) return false;
+    if (xr.isPrimary('hand', side) ? this.pens.pens[side].source !== 'hand' : !xr.isPrimary('controller', side)) return false;
     grip.updateWorldMatrix(true, false);
     out.copy(grip.matrixWorld);
     return true;
@@ -153,15 +148,18 @@ export class DirectGrab {
     return this.world.input.xr.gamepads[side]?.getButtonPressed(InputComponent.Squeeze) ?? false;
   }
 
+  /** Hands reach from the pinch point, controllers from the grip. */
   private nearest(side: Side, frame: Matrix4): GrabTarget | null {
-    const reach = this.world.input.xr.isPrimary('hand', side) ? GRAB_TUNING.handReach : GRAB_TUNING.controllerReach;
+    const hand = this.world.input.xr.isPrimary('hand', side);
+    const reach = hand ? GRAB_TUNING.handReach : GRAB_TUNING.controllerReach;
+    const at = hand ? this.at.copy(this.pens.pens[side].pinch) : this.at.setFromMatrixPosition(frame);
     let best: GrabTarget | null = null;
     let bestDistance = reach;
     for (const target of this.targets) {
       if (!target.available()) continue;
       const object = target.reach;
       object.updateWorldMatrix(true, false);
-      const local = this.p.setFromMatrixPosition(frame).applyMatrix4(this.inv.copy(object.matrixWorld).invert());
+      const local = this.p.copy(at).applyMatrix4(this.inv.copy(object.matrixWorld).invert());
       const distance = target.bounds.distanceToPoint(local) * object.matrixWorld.getMaxScaleOnAxis();
       if (distance <= bestDistance) {
         bestDistance = distance;
@@ -172,14 +170,16 @@ export class DirectGrab {
   }
 
   private take(side: Side, target: GrabTarget, frame: Matrix4): void {
-    // Passing a held target to the other hand releases it there first.
-    for (const other of SIDES) if (other !== side && this.holds[other].target === target) this.release(other);
     const hold = this.holds[side];
     target.carry.updateWorldMatrix(true, false);
     hold.offset.copy(frame).invert().multiply(target.carry.matrixWorld);
     hold.target = target;
     this.near[side] = null;
-    target.begin(side);
+    // Passing a held target to the other hand moves the hold without dropping it
+    // (a drop would land a diorama piece on the floor mid-air).
+    const other = this.holds[side === 'left' ? 'right' : 'left'];
+    if (other.target === target) other.target = null;
+    else target.begin(side);
     this.pulse(side, 0.35);
   }
 

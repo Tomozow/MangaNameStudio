@@ -475,12 +475,14 @@ export class DioramaSystem extends createSystem({
   }
 
   private load(saves: readonly DioramaSave[]): void {
-    for (const piece of [...this.pieces.values()]) {
+    // Forget the old pieces first: dropping a held one must not persist them into the new project.
+    const old = [...this.pieces.values()];
+    this.pieces.clear();
+    for (const piece of old) {
       if (piece === this.cameraPiece) this.rtCamera.removeFromParent();
       piece.release();
       piece.entity.dispose();
     }
-    this.pieces.clear();
     this.pair = null;
     this.cameraPiece = null;
     this.select(null);
@@ -554,7 +556,8 @@ export class DioramaSystem extends createSystem({
 
   private onReleased(entity: Entity): void {
     const piece = this.pieceOf(entity);
-    if (piece == null) return;
+    // A ray forced off a piece a hand still carries leaves it in the hand.
+    if (piece == null || piece.held) return;
     const o = piece.object;
     if (piece.kind !== 'camera') {
       o.rotation.set(0, o.rotation.y, 0, 'YXZ');

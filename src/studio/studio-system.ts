@@ -654,10 +654,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
 
   update(delta: number): void {
     if (!this.ready) return;
-    this.board.updateClipPlanes();
     // Place the wrist menu before the pens probe it this frame.
     this.wrist?.update(delta);
     this.updatePens(delta);
+    // After the windows moved this frame, so a carried board clips where it is drawn.
+    this.board.updateClipPlanes();
     const active = this.active;
     if (active?.pen && active.side != null) {
       this.trackPen(active, active.side);

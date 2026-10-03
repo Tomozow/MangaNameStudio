@@ -17,7 +17,7 @@ import {
   type UIKitMLAsset,
   type World,
 } from '@iwsdk/core';
-import { HandleStore } from '@pmndrs/handle';
+import { HandleStore, type HandleOptions } from '@pmndrs/handle';
 import type { DirectGrab, GrabLevel } from './direct-grab.js';
 
 /** Bar placement and turn rate (meters, 1/s). */
@@ -84,10 +84,26 @@ export class Windows {
     pill.raycast = () => undefined;
     // The visible pill is slim; a larger invisible slab takes the rays and hands.
     const bar = new Mesh(this.hitGeometry, new MeshBasicMaterial({ visible: false }));
-    bar.name = 'WindowBar';
+    bar.name = `WindowBar ${spec.object.name}`;
     bar.add(pill);
     const entity = this.world.createTransformEntity(bar, { parent: spec.parent });
     entity.addComponent(RayInteractable);
+    // One options object: the store reads them every frame of a drag.
+    const options: HandleOptions<void> = {
+      rotate: false,
+      scale: false,
+      multitouch: false,
+      projectRays: false,
+      // A window a hand is carrying ignores rays.
+      filter: () => !item.carried,
+      apply: (state, target) => {
+        target.position.copy(state.current.position);
+        if (item.dragged !== !state.last) {
+          item.dragged = !state.last;
+          this.paint(item);
+        }
+      },
+    };
     const item: Item = {
       spec,
       bar,
@@ -96,19 +112,7 @@ export class Windows {
       carried: false,
       dragged: false,
       grabLevel: 0,
-      handle: new HandleStore<void>(spec.object, () => ({
-        rotate: false,
-        scale: false,
-        multitouch: false,
-        projectRays: false,
-        apply: (state, target) => {
-          target.position.copy(state.current.position);
-          if (item.dragged !== !state.last) {
-            item.dragged = !state.last;
-            this.paint(item);
-          }
-        },
-      })),
+      handle: new HandleStore<void>(spec.object, () => options),
     };
     const target = bar as unknown as {
       addEventListener(type: string, fn: (e: { pointerId: number }) => void): void;
@@ -131,7 +135,8 @@ export class Windows {
     const unregister = this.grab.add({
       reach: bar,
       bounds,
-      carry: spec.object,
+      // The hand carries the bar: the window turning to face the viewer pivots about it.
+      carry: bar,
       available: () => bar.visible && item.handle.getState() == null,
       highlight: (level) => {
         item.grabLevel = level;
@@ -141,9 +146,10 @@ export class Windows {
         item.carried = true;
       },
       move: (world) => {
-        const parent = spec.object.parent;
+        const parent = bar.parent;
         if (parent == null) return;
-        spec.object.position.copy(parent.worldToLocal(this.v.setFromMatrixPosition(world)));
+        // Bar and window share a parent: shift the window by how far its bar must go.
+        spec.object.position.add(parent.worldToLocal(this.v.setFromMatrixPosition(world)).sub(bar.position));
       },
       end: () => {
         item.carried = false;
