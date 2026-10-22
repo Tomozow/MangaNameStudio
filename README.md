@@ -4,6 +4,8 @@ VR（Meta Quest）で漫画のネームを描くためのツールです。iPad 
 空間向けに作り直し、キャラクターの位置関係を確かめるジオラマを加えています。データはこの端末の
 ブラウザ（IndexedDB）内に自動保存されます。
 
+**すぐ試す:** https://tomozow.github.io/MangaNameStudio/ （Quest のブラウザで開いて「VRで開く」。PC のブラウザでもマウスで操作できます。保存先はサイトごとのブラウザ内なので、開発サーバーのデータとは別になります）
+
 ![作業空間の全体](docs/screenshots/overview.jpg)
 
 *正面に見開きボードとページ列、左にツールパレットとジオラマ、右に管理パネルと PDF 資料が並びます。*
@@ -28,7 +30,9 @@ npm run typecheck
 npm run build
 ```
 
-Quest 実機では `npx @iwsdk/cli dev status` の `runtimeUrls.network` の URL を開き、証明書の警告を
+main に push すると GitHub Actions（`.github/workflows/pages.yml`）がビルドして GitHub Pages に公開します。
+
+開発中の版を Quest 実機で開くときは `npx @iwsdk/cli dev status` の `runtimeUrls.network` の URL を開き、証明書の警告を
 許可してから「VRで開く」を押します。
 
 ## 空間の配置
