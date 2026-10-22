@@ -14,7 +14,8 @@ import {
 } from '@iwsdk/core';
 import { createToolSet, setToolLook } from '../scene-assets/tool-models.scene-asset.js';
 import { Autosave } from './autosave.js';
-import { BoardView, WINDOW_H, WINDOW_W } from './board.js';
+import { BoardView, PAPER_Z, WINDOW_H, WINDOW_W } from './board.js';
+import { Calibration } from './calibration.js';
 import { DioramaSystem } from './diorama.js';
 import { DirectGrab, type GrabTarget } from './direct-grab.js';
 import { INNER_FRAME, PX_PER_M, SIDES, TOOL_NAMES, readingSpreads, spreadIndexOf, type Side, type TextBox, type ToolId } from './doc.js';
@@ -41,8 +42,6 @@ import { WristMenu } from './wrist-menu.js';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
-/** Paper surface height in board-root space. */
-const PAPER_Z = 0.002;
 /**
  * Pen contact with the board, in meters above the paper (negative: through it). A pen
  * touches down on the paper and stops drawing once lifted past `prefs.liftMm`.
@@ -98,6 +97,10 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
   private grab!: DirectGrab;
   private windows!: Windows;
   private stock: StockCards | null = null;
+  private calib!: Calibration;
+  /** World size of one board-root unit (the board is scaled to fit a real surface). */
+  private boardScale = 1;
+  private readonly scaleV = new Vector3();
   /** What each held pen tip may press: panels and the page strip (the board has its own contact logic). */
   private readonly uiTargets: Record<Side, Object3D[]> = { left: [], right: [] };
   private rig!: Object3D;
@@ -475,7 +478,18 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       object: this.world.requireSceneObject('board-anchor'),
       parent: rig,
       bounds: (out) => rectBounds(out, WINDOW_W / 2, WINDOW_H / 2 + 0.015),
+      // Asked while the windows are built, before the calibration exists.
+      locked: () => this.calib?.placed === true,
     });
+    this.calib = new Calibration(
+      this.world,
+      this,
+      this.pens,
+      this.windows,
+      this.world.requireSceneObject('board-anchor'),
+      this.world.getSceneObject<UIKitMLAsset>('manager') ?? null,
+      this.cleanupFuncs,
+    );
     const refs = this.refs;
     if (refs != null) {
       this.windows.add({
@@ -545,7 +559,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.world.visibilityState.subscribe((state) => {
         const immersive = state !== VisibilityState.NonImmersive;
         // Bring the desk in front of the user once the headset pose is valid.
-        if (immersive && !this.wasImmersive) setTimeout(() => this.recenter(), 350);
+        if (immersive && !this.wasImmersive) {
+          setTimeout(() => this.recenter(), 350);
+          // After the recenter and input how-to toasts.
+          setTimeout(() => this.calib.announceRestored(), 4000);
+        }
         this.wasImmersive = immersive;
         this.autosave.fast = immersive;
       }),
@@ -710,8 +728,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.wrist?.update(delta);
     this.updatePens(delta);
     this.hud?.update(delta);
-    // After the windows moved this frame, so a carried board clips where it is drawn.
+    // After the windows moved this frame: a board on a real surface stays put.
+    this.calib.update(delta);
+    // After that, so a carried board clips where it is drawn.
     this.board.updateClipPlanes();
+    this.boardScale = this.board.root.getWorldScale(this.scaleV).x;
     const active = this.active;
     if (active?.pen && active.side != null) {
       this.trackPen(active, active.side);
@@ -780,14 +801,15 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
    */
   private penHeight(side: Side, margin: number): number | null {
     const pen = this.pens.pens[side];
-    if (!pen.armed || !pen.held || pen.source == null) return null;
+    // While the surface is being measured the pens touch the real board, not this one.
+    if (!pen.armed || !pen.held || pen.source == null || this.calib.busy) return null;
     const root = this.board.root;
     const local = root.worldToLocal(this.v1.copy(pen.tip));
     if (Math.abs(local.x) > WINDOW_W / 2 + margin || Math.abs(local.y) > WINDOW_H / 2 + margin) return null;
     this.footLocal.x = local.x;
     this.footLocal.y = local.y;
     root.localToWorld(this.foot.set(local.x, local.y, PAPER_Z));
-    return local.z - PAPER_Z;
+    return (local.z - PAPER_Z) * this.boardScale;
   }
 
   private trackPen(active: ActivePointer, side: Side): void {
@@ -796,7 +818,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       this.onBoardUp(active.id);
       return;
     }
-    active.pressure = penPressure(height);
+    active.pressure = this.contactPressure(height);
     this.moveActive(this.foot);
   }
 
@@ -832,6 +854,11 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     }
   }
 
+  /** A real surface stops the pen at the paper, so there is no depth to press: full pressure. */
+  private contactPressure(height: number): number {
+    return this.calib.placed ? 1 : penPressure(height);
+  }
+
   /** A held pen touched the board: start a session as that hand's tool. */
   private beginPen(side: Side, height: number): void {
     const pen = this.pens.pens[side];
@@ -840,7 +867,7 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
     this.lastSide = side;
     // Fingers wobble more than a controller when tapping.
     this.tools.tapSlopPx = pen.source === 'hand' ? 28 : 16;
-    const pressure = penPressure(height);
+    const pressure = this.contactPressure(height);
     const active: ActivePointer = { id: pen.pointer.id, side, sampled: true, pen: true, pressure, pan: null };
     this.active = active;
     this.board.toBoard(this.foot, this.p);
@@ -1178,13 +1205,14 @@ export class StudioSystem extends createSystem({}) implements StudioApi {
       grab: this.grab.debugTargets(),
       windows: this.windows.debugState(),
       hud: this.hud?.visible ?? null,
+      surface: { ...this.calib.debugState(), board: round(this.board.root.getWorldPosition(new Vector3())), boardScale: Math.round(this.boardScale * 1000) / 1000, reach: prefs.penReach, saved: prefs.surface },
       // What is where: texts on the shown pages, stock entries (clips with their text count).
       shownTexts: this.board.slots.map((slot) => slot.page?.texts.map((t) => t.content) ?? null),
       stock: this.project.stock.map((s) => (s.kind === 'clip' ? `clip:${s.texts?.length ?? 0}` : 'page')),
       floating: this.tools.selection.clip != null ? { texts: this.tools.selection.clip.texts.length, stockId: this.tools.selection.clip.stockId } : null,
       // World centres of buttons emulator checks press with a ray.
       buttons: Object.fromEntries(
-        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['wrist-menu', 'wrist-belt'], ['tool-palette', 'sel-stock'], ['tool-palette', 'text-stock']] as const).map(([panel, id]) => {
+        ([['manager', 'page-to-stock'], ['manager', 'stock-recall'], ['manager', 'tab-stock'], ['wrist-menu', 'wrist-layout'], ['wrist-menu', 'wrist-belt'], ['tool-palette', 'sel-stock'], ['tool-palette', 'text-stock'], ['manager', 'view-surface'], ['manager', 'surface-corners'], ['manager', 'surface-pivot'], ['manager', 'surface-z-plus'], ['manager', 'surface-clear'], ['manager', 'view-nearer']] as const).map(([panel, id]) => {
           const el = this.world.getSceneObject<UIKitMLAsset>(panel)?.getElementById(id) as unknown as Object3D | null;
           el?.updateWorldMatrix(true, false);
           return [id, el != null ? round(new Vector3().setFromMatrixPosition(el.matrixWorld)) : null];

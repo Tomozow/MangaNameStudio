@@ -80,6 +80,8 @@ export interface WindowSpec {
   readonly level?: boolean;
   /** It can dock on a wrist (labelled `title` there), and on the belt when `belt` is set: their default scales. */
   readonly dock?: { readonly title: string; readonly wrist: number; readonly belt?: number };
+  /** True while something else places it (the board on a real surface): no bar or grip. */
+  locked?(): boolean;
 }
 
 interface Knob {
@@ -248,6 +250,12 @@ export class Windows {
     prefs.dockScales = {};
     prefs.belt = null;
     savePrefs();
+  }
+
+  /** Put window `id` back where it was left in space (after something else placed it). */
+  restorePose(id: string): void {
+    const item = this.items.find((i) => i.spec.id === id);
+    if (item != null) apply(item.spec.object, item.space);
   }
 
   /** Put window `id` on the belt, or back where it was in space; returns whether it is on the belt now. */
@@ -696,7 +704,7 @@ export class Windows {
   private place(item: Item): void {
     const o = item.spec.object;
     item.spec.bounds(item.bounds);
-    const visible = o.visible;
+    const visible = o.visible && item.spec.locked?.() !== true;
     item.bar.hit.visible = visible;
     if (item.grip != null) item.grip.hit.visible = visible;
     if (!visible) return;

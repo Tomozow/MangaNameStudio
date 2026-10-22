@@ -43,6 +43,8 @@ function liveTexture(canvas: HTMLCanvasElement): CanvasTexture {
 
 export const WINDOW_W = 0.72;
 export const WINDOW_H = 0.5;
+/** Paper surface height in board-root space. */
+export const PAPER_Z = 0.002;
 const LASSO_MAX = 4096;
 /** Window edges as (normal x, normal y, point x, point y), board-root local. */
 const CLIP_DEFS: ReadonlyArray<readonly [number, number, number, number]> = [

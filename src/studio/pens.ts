@@ -9,10 +9,6 @@ import { OneEuro } from './tools.js';
 
 /** Calibration knobs (meters / Hz). Real hands and controllers differ: tune on device. */
 export const PEN_TUNING = {
-  /** Tip distance past the thumb/index grip point, along the pen axis. */
-  handReach: 0.028,
-  /** Tip distance past the controller ray origin. */
-  controllerReach: 0.085,
   /** The tool model leans up this far at the ray origin so its head clears the controller. */
   controllerLift: 0.03,
   /** Thumb–index tip distance that closes / opens the grip (hysteresis). */
@@ -46,6 +42,9 @@ export interface Pen {
   /** World-space tip and unit axis (butt → tip). */
   readonly tip: Vector3;
   readonly axis: Vector3;
+  /** The tip is `base + reach * dir` (prefs.penReach): the grip point or ray origin, and its direction. */
+  readonly base: Vector3;
+  readonly dir: Vector3;
   /** Hands only: the smoothed point between thumb and index tips. */
   readonly pinch: Vector3;
   /** The hand's tool set: origin at the tip, body along +Y, face along +Z. */
@@ -123,6 +122,8 @@ export class PenRig {
         held: false,
         tip: new Vector3(),
         axis: new Vector3(0, 0, -1),
+        base: new Vector3(),
+        dir: new Vector3(0, 0, -1),
         pinch: new Vector3(),
         model,
         pointer,
@@ -181,13 +182,13 @@ export class PenRig {
     }
   }
 
-  /** True while a pen tip is at a UI target (the board should ignore that pen). */
-  onUi(side: Side): boolean {
+  /** True while a pen tip is at a UI target (the board should ignore that pen), or within `within` of one. */
+  onUi(side: Side, within = PEN_TUNING.uiDown * 3): boolean {
     const pen = this.pens[side];
     if (!pen.pointer.getEnabled()) return false;
     // Pointers report a "void" hit when nothing is in reach.
     const hit = pen.pointer.getIntersection() as { distance: number; object: { isVoidObject?: boolean } } | undefined;
-    return hit != null && hit.object.isVoidObject !== true && hit.distance < PEN_TUNING.uiDown * 3;
+    return hit != null && hit.object.isVoidObject !== true && hit.distance < within;
   }
 
   private trackController(pen: Pen): boolean {
@@ -196,7 +197,9 @@ export class PenRig {
     space.updateWorldMatrix(true, false);
     const origin = this.a.setFromMatrixPosition(space.matrixWorld);
     pen.axis.set(0, 0, -1).transformDirection(space.matrixWorld);
-    pen.tip.copy(origin).addScaledVector(pen.axis, PEN_TUNING.controllerReach);
+    pen.base.copy(origin);
+    pen.dir.copy(pen.axis);
+    pen.tip.copy(origin).addScaledVector(pen.axis, prefs.penReach.controller);
     const butt = origin.addScaledVector(this.b.set(0, 1, 0).transformDirection(space.matrixWorld), PEN_TUNING.controllerLift);
     pen.axis.subVectors(pen.tip, butt).normalize();
     pen.fresh = true;
@@ -237,7 +240,9 @@ export class PenRig {
     pen.axis.subVectors(g, web);
     if (pen.axis.lengthSq() < 1e-8) return false;
     pen.axis.normalize();
-    pen.tip.copy(g).addScaledVector(pen.axis, PEN_TUNING.handReach);
+    pen.base.copy(g);
+    pen.dir.copy(pen.axis);
+    pen.tip.copy(g).addScaledVector(pen.axis, prefs.penReach.hand);
     return true;
   }
 

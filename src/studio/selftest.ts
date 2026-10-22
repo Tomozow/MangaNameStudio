@@ -1,5 +1,8 @@
 // Dev-only end-to-end checks driven through the real studio objects (F9).
 // Results go to the console as "[selftest] PASS/FAIL ..." lines.
+import { Matrix4, Quaternion, Vector3 } from '@iwsdk/core';
+import { WINDOW_H, WINDOW_W } from './board.js';
+import { fitCorners, solvePivot, surfaceMatrix } from './calibration.js';
 import { RASTER_H, RASTER_W } from './doc.js';
 import * as ops from './page-ops.js';
 import * as storage from './storage.js';
@@ -25,6 +28,7 @@ export async function runSelfTest(studio: StudioSystem): Promise<void> {
     openProject(id: string): Promise<void>;
     deleteProject(id: string): Promise<void>;
   };
+  calibrationChecks(check);
   const previous = studio.project.id;
   await s.newProject(6);
   const board = studio.board;
@@ -179,4 +183,43 @@ export async function runSelfTest(studio: StudioSystem): Promise<void> {
   const failed = results.filter((r) => r.startsWith('FAIL')).length;
   console.log(`[selftest] DONE ${results.length - failed}/${results.length} passed`);
   studio.toast(`セルフテスト ${results.length - failed}/${results.length} 合格`);
+}
+
+/** Surface calibration maths on synthetic measurements. */
+function calibrationChecks(check: (name: string, ok: boolean, detail?: string) => void): void {
+  // A pen 12 cm long pivoting on P: base = P - reach * dir.
+  const P = new Vector3(0.1, 0.8, -0.4);
+  const samples = new Float32Array(200 * 6);
+  const dir = new Vector3();
+  for (let i = 0; i < 200; i++) {
+    const a = i * 0.31;
+    dir.set(Math.sin(a) * 0.4, -1, Math.cos(a * 0.7) * 0.4).normalize();
+    dir.toArray(samples, i * 6 + 3);
+    new Vector3().copy(P).addScaledVector(dir, -0.12).toArray(samples, i * 6);
+  }
+  const pivot = solvePivot(samples, 200);
+  check('pivot recovers the pen length', Math.abs(pivot.reach - 0.12) < 1e-4 && pivot.rms < 1e-4, JSON.stringify(pivot));
+
+  // An A3 board (42 x 29.7 cm) tilted 20 degrees toward the viewer, corners TL, TR, BR, BL.
+  const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), (-20 * Math.PI) / 180);
+  const c = new Vector3(0, 0.9, -0.45);
+  const corner = (x: number, y: number) => new Vector3(x, y, 0).applyQuaternion(q).add(c);
+  const pts = [corner(-0.21, 0.1485), corner(0.21, 0.1485), corner(0.21, -0.1485), corner(-0.21, -0.1485)];
+  for (const n of [3, 4]) {
+    const fit = fitCorners(pts.slice(0, n));
+    const ok =
+      typeof fit !== 'string' &&
+      Math.abs(fit.size[0]! - 0.42) < 1e-6 &&
+      Math.abs(fit.size[1]! - 0.297) < 1e-6 &&
+      new Vector3().fromArray(fit.pose).distanceTo(c) < 1e-6 &&
+      new Quaternion().fromArray(fit.pose, 3).angleTo(q) < 1e-6;
+    check(`${n} corners fit the board`, ok, JSON.stringify(fit));
+    if (n !== 4 || typeof fit === 'string') continue;
+    // The window fits inside: its paper's corner on the surface, scaled by the narrower side.
+    const m = surfaceMatrix({ ...fit, adjust: [0, 0, 0, 0, 0] }, new Matrix4());
+    const k = Math.min(0.42 / WINDOW_W, 0.297 / WINDOW_H);
+    const paper = new Vector3(-WINDOW_W / 2, WINDOW_H / 2, 0.002).applyMatrix4(m);
+    check('surface puts the paper on the board', paper.distanceTo(corner((-WINDOW_W / 2) * k, (WINDOW_H / 2) * k)) < 1e-6);
+  }
+  check('corners out of order are refused', typeof fitCorners([pts[0]!, pts[2]!, pts[1]!]) === 'string');
 }

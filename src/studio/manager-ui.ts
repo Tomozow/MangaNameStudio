@@ -7,8 +7,10 @@ import * as storage from './storage.js';
 import type { StudioApi } from './studio-ctx.js';
 import { applyJapaneseFont, bindButton, setChip, setProps, setText, setVisible } from './ui-kit.js';
 
-type Tab = 'pages' | 'stock' | 'refs' | 'files';
+type Tab = 'pages' | 'stock' | 'refs' | 'files' | 'surface';
 const TABS: Tab[] = ['pages', 'stock', 'refs', 'files'];
+/** The surface pane opens from the view section, not from a tab of its own. */
+const PANES: Tab[] = [...TABS, 'surface'];
 const STOCK_SLOTS = 8;
 const FILE_ROWS = 4;
 
@@ -76,6 +78,7 @@ export class ManagerUi {
     bindButton(panel, 'view-raise', () => actions.nudge(0.05, 0), c);
     bindButton(panel, 'view-nearer', () => actions.nudge(0, 0.05), c);
     bindButton(panel, 'view-farther', () => actions.nudge(0, -0.05), c);
+    bindButton(panel, 'view-surface', () => this.setTab('surface'), c);
 
     bindButton(panel, 'stock-mode-stock', () => this.setStockMode('stock'), c);
     bindButton(panel, 'stock-mode-trash', () => this.setStockMode('trash'), c);
@@ -141,10 +144,8 @@ export class ManagerUi {
 
   setTab(tab: Tab): void {
     this.tab = tab;
-    for (const t of TABS) {
-      setChip(this.panel, `tab-${t}`, t === tab);
-      setVisible(this.panel, `pane-${t}`, t === tab);
-    }
+    for (const t of TABS) setChip(this.panel, `tab-${t}`, t === tab);
+    for (const t of PANES) setVisible(this.panel, `pane-${t}`, t === tab);
     if (tab === 'files') void this.loadFiles();
     this.refresh();
   }

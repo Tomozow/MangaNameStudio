@@ -143,6 +143,15 @@
     line-height: 1.25;
   }
 
+  .adj-name {
+    width: 5.5;
+  }
+
+  .adj-value {
+    width: 6.5;
+    text-align: center;
+  }
+
   .line-label {
     font-family: "M PLUS 1p";
     font-size: 1.25;
@@ -197,6 +206,59 @@
       <Button id="view-nearer" class="chip" variant="secondary"><ButtonLabel class="chip-label">近く</ButtonLabel></Button>
       <Button id="view-farther" class="chip" variant="secondary"><ButtonLabel class="chip-label">遠く</ButtonLabel></Button>
     </div>
+    <div class="row">
+      <Button id="view-surface" class="chip" variant="secondary"><Ruler class="ico-sm" /><ButtonLabel class="chip-label">現実の板に合わせる</ButtonLabel></Button>
+    </div>
+  </div>
+
+  <div id="pane-surface" class="col" style="display: none">
+    <span class="title">現実の板に合わせる</span>
+    <span id="surface-status" class="body">未設定</span>
+    <span id="surface-guide" class="caption">現実のペンと板を用意し、1.ペン先を測る 2.角を打つ の順に合わせます</span>
+    <div class="row">
+      <Button id="surface-pivot" class="chip" variant="secondary"><PencilLine class="ico-sm" /><ButtonLabel id="surface-pivot-label" class="chip-label">ペン先を測る</ButtonLabel></Button>
+      <Button id="surface-corners" class="chip" variant="primary"><Scan class="ico-sm" /><ButtonLabel id="surface-corners-label" class="chip-label">角を打つ</ButtonLabel></Button>
+      <Button id="surface-clear" class="chip" variant="negative"><X class="ico-sm" /><ButtonLabel class="chip-label">解除</ButtonLabel></Button>
+    </div>
+    <div class="divider" />
+    <span class="caption">手動調整 (高さ+で面が手前へ)</span>
+    <div class="row">
+      <span class="body adj-name">高さ</span>
+      <Button id="surface-z-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <span id="surface-z-label" class="body adj-value">0mm</span>
+      <Button id="surface-z-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+    </div>
+    <div class="row">
+      <span class="body adj-name">左右</span>
+      <Button id="surface-x-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <span id="surface-x-label" class="body adj-value">0mm</span>
+      <Button id="surface-x-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+    </div>
+    <div class="row">
+      <span class="body adj-name">上下</span>
+      <Button id="surface-y-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <span id="surface-y-label" class="body adj-value">0mm</span>
+      <Button id="surface-y-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+    </div>
+    <div class="row">
+      <span class="body adj-name">回転</span>
+      <Button id="surface-rot-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <span id="surface-rot-label" class="body adj-value">0°</span>
+      <Button id="surface-rot-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+    </div>
+    <div class="row">
+      <span class="body adj-name">大きさ</span>
+      <Button id="surface-size-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <span id="surface-size-label" class="body adj-value">0%</span>
+      <Button id="surface-size-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+    </div>
+    <div class="row">
+      <span class="body adj-name">ペン先</span>
+      <Button id="surface-reach-minus" class="square" variant="secondary"><Minus class="ico-sm" /></Button>
+      <Button id="surface-reach-plus" class="square" variant="secondary"><Plus class="ico-sm" /></Button>
+      <span class="caption">今使っている方の長さ</span>
+    </div>
+    <span id="surface-reach-label" class="caption">手 2.8 / コントローラー 8.5cm</span>
   </div>
 
   <div id="pane-stock" class="col" style="display: none">
