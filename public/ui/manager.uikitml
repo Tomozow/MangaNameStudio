@@ -274,16 +274,16 @@
       </div>
     </div>
     <div class="row">
-      <div id="stock-slot-0" class="slot"><img id="stock-img-0" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-0" class="caption">-</span></div>
-      <div id="stock-slot-1" class="slot"><img id="stock-img-1" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-1" class="caption">-</span></div>
-      <div id="stock-slot-2" class="slot"><img id="stock-img-2" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-2" class="caption">-</span></div>
-      <div id="stock-slot-3" class="slot"><img id="stock-img-3" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-3" class="caption">-</span></div>
+      <div id="stock-slot-0" class="slot"><img id="stock-img-0" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-0" class="caption">-</span></div>
+      <div id="stock-slot-1" class="slot"><img id="stock-img-1" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-1" class="caption">-</span></div>
+      <div id="stock-slot-2" class="slot"><img id="stock-img-2" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-2" class="caption">-</span></div>
+      <div id="stock-slot-3" class="slot"><img id="stock-img-3" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-3" class="caption">-</span></div>
     </div>
     <div class="row">
-      <div id="stock-slot-4" class="slot"><img id="stock-img-4" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-4" class="caption">-</span></div>
-      <div id="stock-slot-5" class="slot"><img id="stock-img-5" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-5" class="caption">-</span></div>
-      <div id="stock-slot-6" class="slot"><img id="stock-img-6" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-6" class="caption">-</span></div>
-      <div id="stock-slot-7" class="slot"><img id="stock-img-7" class="thumb" src="../textures/page_template.jpg" /><span id="stock-cap-7" class="caption">-</span></div>
+      <div id="stock-slot-4" class="slot"><img id="stock-img-4" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-4" class="caption">-</span></div>
+      <div id="stock-slot-5" class="slot"><img id="stock-img-5" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-5" class="caption">-</span></div>
+      <div id="stock-slot-6" class="slot"><img id="stock-img-6" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-6" class="caption">-</span></div>
+      <div id="stock-slot-7" class="slot"><img id="stock-img-7" class="thumb" src="./textures/page_template.jpg" /><span id="stock-cap-7" class="caption">-</span></div>
     </div>
     <span id="stock-hint" class="caption">ページやクリップを選んで操作します</span>
     <span class="caption">ストックは空間のカードにもなります。カードを持ってボードやページ列で離すと戻し、クリップはページの上で離すと貼れます</span>
