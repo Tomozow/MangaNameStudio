@@ -205,3 +205,7 @@ VR に入ると作業台が自動で正面に来ます。ずれたら左コン�
 
 - ページ上の文字: 源暎アンチック（`public/fonts/GenEiAntiqueNv6-M.ttf`、SIL OFL）
 - UI: M PLUS 1p。UIKit 用に JIS 第 1 水準・かな・記号の MSDF アトラス（`public/fonts/mplus-msdf.*`）を同梱
+
+## ライセンス
+
+コードは [MIT License](LICENSE) です。同梱フォント（`public/fonts/`）はそれぞれのライセンス（SIL OFL、`public/fonts/OFL.txt` ほか）に従います。
